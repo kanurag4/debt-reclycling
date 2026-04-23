@@ -14,7 +14,8 @@ This calculator helps you decide whether the math works for your situation by sh
 - **Net wealth comparison** — recycling vs. doing nothing, projected over 5–30 years
 - **Out-of-pocket cost** — how much salary you need to contribute if the strategy is negatively geared
 - **Loan payoff trajectory** — how quickly your non-deductible debt shrinks
-- **Year-by-year table** — full breakdown of every number
+- **Year-by-year table** — full breakdown of every number, with a plain-English column guide for each field
+- **Chart explainers** — one-line descriptions below each chart to help first-time users understand what they're seeing
 
 ## Three strategies
 
@@ -32,6 +33,7 @@ This calculator helps you decide whether the math works for your situation by sh
 - Investment return and dividend yield assumptions
 - Franking percentage (e.g. VAS ETF is ~70–100% franked — boosts your after-tax dividends)
 - State selector for stamp duty estimate (property tab)
+- Annual maintenance cost estimate (property tab) — auto-set to 1% of purchase price, editable
 - ±2% sensitivity bands on the wealth chart (checkbox)
 
 ## Running locally
@@ -49,7 +51,7 @@ No build step, no npm install required for the app itself.
 npm test
 ```
 
-Uses Node's built-in test runner (Node 18+). 69 tests covering all pure calculation functions.
+Uses Node's built-in test runner (Node 18+). 71 tests covering all pure calculation functions.
 
 ## Tech stack
 

@@ -12,7 +12,7 @@ Debt recycling converts non-deductible home loan debt into tax-deductible invest
 2. **Equity Release → Stocks/ETFs** — refinance to access equity, invest in market
 3. **Equity Release → Investment Property** — refinance to use equity as deposit on IP
 
-The tool shows: annual tax savings, total tax saved over projection, net wealth comparison with vs. without recycling, out-of-pocket salary cost (if negatively geared), ±2% sensitivity bands on the wealth chart, and year-by-year projections.
+The tool shows: annual tax savings, total tax saved over projection, net wealth comparison with vs. without recycling, out-of-pocket salary cost (if negatively geared), ±2% sensitivity bands on the wealth chart, year-by-year projections, and novice-friendly chart explainers with a column guide in the year table.
 
 ## Tech Stack
 
@@ -108,10 +108,11 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 7. Portfolio grows by capital only: `investmentValue += investmentValue × (investmentReturn − dividendYield)`
    — dividends are paid out as cash, NOT reinvested in the portfolio
 8. `annualInvRepayment = _pmt(recycleAmount, investmentRate, investmentLoanTerm) × 12` (fixed P&I)
-9. `netCashFlow = netDividends + taxSaving − annualInvRepayment`
-10. `extraRepayment = max(netCashFlow, 0)` — positive cash flow → extra repayment on home loan
-11. Investment loan principal reduces: `deductible -= max(annualInvRepayment − deductibleInterest, 0)`
-12. Home loan reduces: `nonDeductible -= scheduledPrincipal + extraRepayment`
+9. `netMaintenanceCost = maintenanceCost × (1 − taxRate)` — maintenance is deductible; 0 for non-property modes
+10. `netCashFlow = netDividends + taxSaving − annualInvRepayment − netMaintenanceCost`
+11. `extraRepayment = max(netCashFlow, 0)` — positive cash flow → extra repayment on home loan
+12. Investment loan principal reduces: `deductible -= max(annualInvRepayment − deductibleInterest, 0)`
+13. Home loan reduces: `nonDeductible -= scheduledPrincipal + extraRepayment`
 
 **Key invariants:**
 - Tax saving is ONLY on the interest portion — never on principal repayment
@@ -139,6 +140,7 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 - `releaseAmount = equityReleaseP` (gross, for LVR check)
 - `dividendYield = rentalYield`, `investmentReturn = ipGrowth + rentalYield`
 - Stamp duty auto-calculated from state dropdown rate; editable with ↺ reset
+- `maintenanceCost` auto-calculated at 1% of IP purchase price; editable with ↺ reset; passed to `runScenario()` as annual $ amount (0 for other tabs)
 
 ### Stamp Duty Rates by State
 
@@ -160,7 +162,8 @@ These are indicative rates. Users can override the calculated amount manually.
 Input Panel sections (in order):
   1. Home Loan — balance, property value, home loan rate, loan term, monthly repayment (auto)
   2. Strategy-specific — offset balance / equity release / IP details (tab-driven)
-     Property tab includes: state dropdown (drives stamp duty rate), stamp duty (auto + ↺ reset)
+     Property tab includes: state dropdown (drives stamp duty rate), stamp duty (auto + ↺ reset),
+     annual maintenance cost (auto at 1% of IP price + ↺ reset; shows live % of purchase price)
   3. Investment Loan — investment rate, investment loan term (drives P&I amortisation)
   4. Your Income — annual income (derives marginal rate), optional override
   5. Investment Assumptions — expected return, dividend yield, franking % (0–100%), projection slider,
@@ -172,10 +175,10 @@ Results Panel:
   - Summary Cards (3): Tax Saving / yr | Total Tax Saved | Wealth Gain
   - Verdict banner (green/amber/red)
   - Out-of-pocket note (amber, shown only when negatively geared) — annual salary shortfall = max(-netCashFlow yr1, 0)
-  - Chart: Loan Balance Over Time (fixed 240px height, auto-scaling axes)
-  - Chart: Net Wealth Over Time — base scenario solid lines; ±2% sensitivity as dashed lines when checkbox checked
+  - Chart: Loan Balance Over Time (fixed 240px height, auto-scaling axes) — one-line novice explainer below title
+  - Chart: Net Wealth Over Time — base scenario solid lines; ±2% sensitivity as dashed lines when checkbox checked — one-line novice explainer below title
   - [Download PDF] button
-  - Table: Year-by-year breakdown (collapsible) — columns:
+  - Table: Year-by-year breakdown (collapsible) — column guide (`.table-glossary`) shown above the table when expanded; columns:
     Year | Non-Ded. Loan | Total Loan | Baseline Loan | Investment |
     Inv. Loan Interest | Tax Saving | Net Cash Flow | Net Wealth | Baseline Wealth
 ```
@@ -185,6 +188,7 @@ Results Panel:
 - `parseMoney(el)` strips commas before calculation — never use `parseFloat()` on money inputs
 - Monthly repayment: auto-calculated from `monthlyPayment(balance, rate, term)`; "auto" badge + ↺ reset
 - Stamp duty (property tab): auto-calculated from `STAMP_DUTY_RATES[state]`; editable with ↺ reset; state dropdown triggers recalc
+- Annual maintenance (property tab): auto-calculated at 1% of IP price (`ipPrice × 0.01`); `maintenanceCostManual` flag prevents auto-recalc on IP price change; ↺ reset restores auto; `maintPctDisplay` shows live % of purchase price
 - Franking %: `frankingPct` input (0–100); stored in localStorage; wired to `scenarioInputs.frankingPct` as decimal
 - Sensitivity: checkbox runs two extra `runScenario()` calls at ±2% investmentReturn; dashed lines added to wealth chart via `borderDash: [6, 4]`
 - Out-of-pocket note: shown in results when `rows[0].netCashFlow < 0`; displays `max(-netCashFlow, 0)` as annual salary cost
@@ -207,7 +211,7 @@ All pure functions in `utils.js` and `calc/*.js` must have unit tests. The `www/
 ### Running tests
 
 ```bash
-npm test          # runs node --test tests/*.test.js — 69 tests, all passing
+npm test          # runs node --test tests/*.test.js — 71 tests, all passing
 ```
 
 ### Node testability
@@ -227,6 +231,8 @@ if (typeof module !== 'undefined') module.exports = { functionName };
 - `frankingPct=0` → `netDividends = grossDividends × (1 − taxRate)` (unchanged baseline)
 - `frankingPct=1` → `netDividends = grossDividends × (1 + 30/70) × (1 − taxRate)`
 - omitting `frankingPct` → same result as `frankingPct=0` (backward compatibility)
+- `maintenanceCost=0` (or omitted) → `netCashFlow` unchanged (backward compatibility)
+- `maintenanceCost > 0` → `netCashFlow` decreases by `maintenanceCost × (1 − taxRate)`
 
 ## Running Locally
 
