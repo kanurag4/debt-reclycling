@@ -12,7 +12,7 @@ Debt recycling converts non-deductible home loan debt into tax-deductible invest
 2. **Equity Release → Stocks/ETFs** — refinance to access equity, invest in market
 3. **Equity Release → Investment Property** — refinance to use equity as deposit on IP
 
-The tool shows: annual tax savings, total tax saved over projection, net wealth comparison with vs. without recycling, and year-by-year projections.
+The tool shows: annual tax savings, total tax saved over projection, net wealth comparison with vs. without recycling, out-of-pocket salary cost (if negatively geared), ±2% sensitivity bands on the wealth chart, and year-by-year projections.
 
 ## Tech Stack
 
@@ -103,14 +103,15 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 2. `taxSaving = deductibleInterest × taxRate` — tax only on interest, never on principal repayment
 3. `netInterestCost = deductibleInterest × (1 − taxRate)`
 4. `grossDividends = investmentValue × dividendYield`
-5. `netDividends = grossDividends × (1 − taxRate)`
-6. Portfolio grows by capital only: `investmentValue += investmentValue × (investmentReturn − dividendYield)`
+5. `frankingCredit = grossDividends × frankingPct × (30 / 70)` — 0 when frankingPct = 0
+6. `netDividends = (grossDividends + frankingCredit) × (1 − taxRate)`
+7. Portfolio grows by capital only: `investmentValue += investmentValue × (investmentReturn − dividendYield)`
    — dividends are paid out as cash, NOT reinvested in the portfolio
-7. `annualInvRepayment = _pmt(recycleAmount, investmentRate, investmentLoanTerm) × 12` (fixed P&I)
-8. `netCashFlow = netDividends + taxSaving − annualInvRepayment`
-9. `extraRepayment = max(netCashFlow, 0)` — positive cash flow → extra repayment on home loan
-10. Investment loan principal reduces: `deductible -= max(annualInvRepayment − deductibleInterest, 0)`
-11. Home loan reduces: `nonDeductible -= scheduledPrincipal + extraRepayment`
+8. `annualInvRepayment = _pmt(recycleAmount, investmentRate, investmentLoanTerm) × 12` (fixed P&I)
+9. `netCashFlow = netDividends + taxSaving − annualInvRepayment`
+10. `extraRepayment = max(netCashFlow, 0)` — positive cash flow → extra repayment on home loan
+11. Investment loan principal reduces: `deductible -= max(annualInvRepayment − deductibleInterest, 0)`
+12. Home loan reduces: `nonDeductible -= scheduledPrincipal + extraRepayment`
 
 **Key invariants:**
 - Tax saving is ONLY on the interest portion — never on principal repayment
@@ -137,7 +138,17 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 - `recycleAmount = equityReleaseP − stampDuty`
 - `releaseAmount = equityReleaseP` (gross, for LVR check)
 - `dividendYield = rentalYield`, `investmentReturn = ipGrowth + rentalYield`
-- Stamp duty auto-calculated at 3.9% of purchase price; editable with ↺ reset
+- Stamp duty auto-calculated from state dropdown rate; editable with ↺ reset
+
+### Stamp Duty Rates by State
+
+```js
+const STAMP_DUTY_RATES = {
+  NSW: 0.039, VIC: 0.055, QLD: 0.035, SA: 0.040,
+  WA: 0.035, TAS: 0.035, ACT: 0.035, NT: 0.045,
+};
+```
+These are indicative rates. Users can override the calculated amount manually.
 
 ## UI Layout
 
@@ -149,18 +160,20 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 Input Panel sections (in order):
   1. Home Loan — balance, property value, home loan rate, loan term, monthly repayment (auto)
   2. Strategy-specific — offset balance / equity release / IP details (tab-driven)
+     Property tab includes: state dropdown (drives stamp duty rate), stamp duty (auto + ↺ reset)
   3. Investment Loan — investment rate, investment loan term (drives P&I amortisation)
   4. Your Income — annual income (derives marginal rate), optional override
-  5. Investment Assumptions — expected return, dividend yield, projection slider
-     (hidden for Property tab — uses rental yield + capital growth instead)
+  5. Investment Assumptions — expected return, dividend yield, franking % (0–100%), projection slider,
+     sensitivity checkbox (±2%); hidden for Property tab — uses rental yield + capital growth instead
   [Warnings: LVR, repayment below minimum]
   [Calculate] [Reset]
 
 Results Panel:
   - Summary Cards (3): Tax Saving / yr | Total Tax Saved | Wealth Gain
   - Verdict banner (green/amber/red)
+  - Out-of-pocket note (amber, shown only when negatively geared) — annual salary shortfall = max(-netCashFlow yr1, 0)
   - Chart: Loan Balance Over Time (fixed 240px height, auto-scaling axes)
-  - Chart: Net Wealth Over Time (fixed 240px height, auto-scaling axes)
+  - Chart: Net Wealth Over Time — base scenario solid lines; ±2% sensitivity as dashed lines when checkbox checked
   - [Download PDF] button
   - Table: Year-by-year breakdown (collapsible) — columns:
     Year | Non-Ded. Loan | Total Loan | Baseline Loan | Investment |
@@ -171,7 +184,10 @@ Results Panel:
 - All dollar fields use `type="text" inputmode="numeric"` with live comma formatting (cursor-aware)
 - `parseMoney(el)` strips commas before calculation — never use `parseFloat()` on money inputs
 - Monthly repayment: auto-calculated from `monthlyPayment(balance, rate, term)`; "auto" badge + ↺ reset
-- Stamp duty (property tab): auto-calculated at 3.9% of purchase price; editable with ↺ reset
+- Stamp duty (property tab): auto-calculated from `STAMP_DUTY_RATES[state]`; editable with ↺ reset; state dropdown triggers recalc
+- Franking %: `frankingPct` input (0–100); stored in localStorage; wired to `scenarioInputs.frankingPct` as decimal
+- Sensitivity: checkbox runs two extra `runScenario()` calls at ±2% investmentReturn; dashed lines added to wealth chart via `borderDash: [6, 4]`
+- Out-of-pocket note: shown in results when `rows[0].netCashFlow < 0`; displays `max(-netCashFlow, 0)` as annual salary cost
 - Investment loan rate shows: effective rate after tax + monthly I/O and P&I repayments
 - Inputs auto-save to `localStorage` key `'debt_recycling_inputs'`
 - Marginal tax rate auto-derived from income, shown to user (overridable)
@@ -182,6 +198,7 @@ Results Panel:
 - Y-axis width pinned to 88px via `afterFit` — prevents label width shifts from moving the plot area
 - `maxTicksLimit: 6` — keeps Y-axis ticks stable
 - Axes auto-scale to data (no fixed bounds)
+- Sensitivity datasets use `borderDash: [6, 4]` — pass `dash: [6, 4]` in the dataset object to `renderLineChart()`
 
 ## Unit Testing
 
@@ -190,7 +207,7 @@ All pure functions in `utils.js` and `calc/*.js` must have unit tests. The `www/
 ### Running tests
 
 ```bash
-npm test          # runs node --test tests/*.test.js — 64 tests, all passing
+npm test          # runs node --test tests/*.test.js — 69 tests, all passing
 ```
 
 ### Node testability
@@ -207,6 +224,9 @@ if (typeof module !== 'undefined') module.exports = { functionName };
 - `investmentLoanTerm` provided → total loan balance decreases every year
 - `investmentReturn=0, dividendYield=0` → investment value stays flat (no capital growth, no dividends)
 - LVR checks at exactly 80%, just over, and well over
+- `frankingPct=0` → `netDividends = grossDividends × (1 − taxRate)` (unchanged baseline)
+- `frankingPct=1` → `netDividends = grossDividends × (1 + 30/70) × (1 − taxRate)`
+- omitting `frankingPct` → same result as `frankingPct=0` (backward compatibility)
 
 ## Running Locally
 
