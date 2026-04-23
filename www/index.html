@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Debt Recycling Calculator — KashVector</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="../Debt-recycling.png">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
 <header class="app-header">
-  <a href="/" class="home-logo" title="KashVector">
-    <img src="../favicon.ico" alt="KV" onerror="this.style.display='none'">
+  <a href="/" class="home-logo" aria-label="KashVector home">
+    <img src="../logo.svg" alt="KashVector" width="32" height="32">
   </a>
-  <h1>Debt Recycling Calculator</h1>
+  <h1><img src="../Debt-recycling.png" alt="" width="32" height="32" style="vertical-align:middle;margin-right:8px;border-radius:6px"> Debt Recycling Calculator</h1>
   <p>Model whether converting your home loan to tax-deductible investment debt is right for you.</p>
 </header>
 
@@ -205,12 +206,12 @@
 
         <div class="chart-card">
           <h3>Loan Balance Over Time</h3>
-          <canvas id="loanChart" height="220"></canvas>
+          <canvas id="loanChart"></canvas>
         </div>
 
         <div class="chart-card">
           <h3>Net Wealth Over Time</h3>
-          <canvas id="wealthChart" height="220"></canvas>
+          <canvas id="wealthChart"></canvas>
         </div>
 
         <button class="btn-pdf" id="downloadPdfBtn">Download PDF</button>

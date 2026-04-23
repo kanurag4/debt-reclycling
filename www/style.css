@@ -335,7 +335,7 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-.chart-card canvas { width: 100% !important; }
+.chart-card canvas { width: 100% !important; height: 240px !important; display: block; }
 
 /* ── Verdict ── */
 .verdict {

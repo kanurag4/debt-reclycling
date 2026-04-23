@@ -493,25 +493,18 @@ function renderResults(rows, years, { totalTaxSaved }) {
     v.textContent = `Not beneficial under these assumptions — recycling trails by ${formatCurrency(Math.abs(wealthGain))}.`;
   }
 
-  // Charts — compute stable nice-rounded axis bounds so scale doesn't jump on recalculate
+  // Charts
   const labels = rows.map(r => `Yr ${r.year}`);
-
-  const loanVals  = rows.flatMap(r => [r.totalLoanBalance, r.baselineBalance]);
-  const loanMax   = niceAxisBound(Math.max(...loanVals), 'up');
-
-  const wealthVals = rows.flatMap(r => [r.netWealthRecycling, r.netWealthBaseline]);
-  const wealthMax  = niceAxisBound(Math.max(...wealthVals), 'up');
-  const wealthMin  = niceAxisBound(Math.min(...wealthVals), 'down');
 
   renderLineChart('loanChart', labels, [
     { label: 'Recycling (total loan)', data: rows.map(r => r.totalLoanBalance), color: '#38bdf8' },
     { label: 'Baseline (no recycling)', data: rows.map(r => r.baselineBalance),  color: '#94a3b8' },
-  ], loanChart, c => { loanChart = c; }, { yMin: 0, yMax: loanMax });
+  ], loanChart, c => { loanChart = c; });
 
   renderLineChart('wealthChart', labels, [
     { label: 'Net Wealth (recycling)', data: rows.map(r => r.netWealthRecycling), color: '#22c55e' },
     { label: 'Net Wealth (baseline)',  data: rows.map(r => r.netWealthBaseline),  color: '#94a3b8' },
-  ], wealthChart, c => { wealthChart = c; }, { yMin: wealthMin, yMax: wealthMax });
+  ], wealthChart, c => { wealthChart = c; });
 
   // Table
   els.yearTableBody.innerHTML = '';
@@ -534,20 +527,7 @@ function renderResults(rows, years, { totalTaxSaved }) {
   });
 }
 
-function niceAxisBound(value, direction) {
-  // 'up'   → ceiling: at least as large as value (for y-axis max)
-  // 'down' → floor:   at most as small as value  (for y-axis min)
-  if (!isFinite(value) || value === 0) return 0;
-  const abs = Math.abs(value);
-  const exp = Math.pow(10, Math.floor(Math.log10(abs)));
-  const frac = abs / exp;
-  const NICES = [1.5, 2, 2.5, 3, 4, 5, 7.5, 10];
-  const niceCeil = (NICES.find(n => n >= frac) ?? 10) * exp;
-  if (direction === 'up')   return value >= 0 ? niceCeil : 0;       // positive → round up; negative max → cap at 0
-  else                      return value <= 0 ? -niceCeil : 0;       // negative → round away from 0; positive min → floor at 0
-}
-
-function renderLineChart(canvasId, labels, datasets, existingChart, setChart, { yMin, yMax } = {}) {
+function renderLineChart(canvasId, labels, datasets, existingChart, setChart) {
   if (existingChart) existingChart.destroy();
   const chart = new Chart($(canvasId).getContext('2d'), {
     type: 'line',
@@ -560,6 +540,7 @@ function renderLineChart(canvasId, labels, datasets, existingChart, setChart, { 
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: '#94a3b8', font: { size: 12 } } },
         tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } },
@@ -567,9 +548,8 @@ function renderLineChart(canvasId, labels, datasets, existingChart, setChart, { 
       scales: {
         x: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: '#334155' } },
         y: {
-          min: yMin,
-          max: yMax,
-          ticks: { color: '#94a3b8', font: { size: 11 }, callback: v => formatCurrency(v) },
+          afterFit: (scale) => { scale.width = 88; },
+          ticks: { color: '#94a3b8', font: { size: 11 }, callback: v => formatCurrency(v), maxTicksLimit: 6 },
           grid: { color: '#334155' },
         },
       },
