@@ -480,6 +480,9 @@ tbody tr:hover { background: var(--kv-card-2); }
   font-weight: 400;
 }
 
+/* ── Print inputs summary (hidden in browser, shown in PDF) ── */
+.print-inputs { display: none; }
+
 /* ── Print / PDF ── */
 @media print {
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -506,4 +509,38 @@ tbody tr:hover { background: var(--kv-card-2); }
   .chart-card { page-break-inside: avoid; }
   .table-card  { page-break-inside: avoid; }
   .summary-cards { page-break-inside: avoid; }
+
+  .print-inputs {
+    display: block;
+    background: var(--kv-card);
+    border: 1px solid var(--kv-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    page-break-inside: avoid;
+  }
+  .print-inputs h3 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--kv-muted);
+    margin-bottom: 10px;
+  }
+  .print-inputs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 32px;
+  }
+  .pi-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--kv-border);
+    font-size: 0.82rem;
+    gap: 8px;
+  }
+  .pi-row:last-child { border-bottom: none; }
+  .pi-label { color: var(--kv-muted); }
+  .pi-value { font-weight: 600; text-align: right; }
 }

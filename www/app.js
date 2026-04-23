@@ -495,9 +495,71 @@ function onCalculate() {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
+function populatePrintInputs() {
+  const override = parseFloat(els.taxRateOverride.value);
+  const taxRate = isFinite(override) && els.taxRateOverride.value !== ''
+    ? override / 100
+    : marginalRate(parseMoney(els.income));
+
+  const tabLabel = {
+    offset: 'Offset Strategy',
+    stocks: 'Equity → Stocks/ETFs',
+    property: 'Equity → Investment Property',
+  }[activeTab];
+
+  const pairs = [
+    ['Strategy',          tabLabel],
+    ['Loan Balance',      formatCurrency(parseMoney(els.loanBalance))],
+    ['Property Value',    formatCurrency(parseMoney(els.propertyValue))],
+    ['Home Loan Rate',    els.interestRate.value + '% p.a.'],
+    ['Loan Term',         els.loanTerm.value + ' yrs'],
+    ['Monthly Repayment', formatCurrency(parseMoney(els.monthlyRepayment))],
+  ];
+
+  if (activeTab === 'offset') {
+    pairs.push(['Offset Balance', formatCurrency(parseMoney(els.offsetBalance))]);
+  } else if (activeTab === 'stocks') {
+    pairs.push(['Equity Release', formatCurrency(parseMoney(els.equityRelease))]);
+    const ref = parseMoney(els.refinancingCosts);
+    if (ref > 0) pairs.push(['Refinancing Costs', formatCurrency(ref)]);
+  } else if (activeTab === 'property') {
+    pairs.push(
+      ['Equity Release',   formatCurrency(parseMoney(els.equityReleaseP))],
+      ['IP Purchase Price', formatCurrency(parseMoney(els.ipPrice))],
+      ['Rental Yield',     els.rentalYield.value + '% p.a.'],
+      ['Capital Growth',   els.ipGrowth.value + '% p.a.'],
+      ['State',            els.propertyState.value],
+      ['Stamp Duty',       formatCurrency(parseMoney(els.stampDuty))],
+    );
+  }
+
+  pairs.push(
+    ['Inv. Loan Rate', els.investmentRate.value + '% p.a.'],
+    ['Inv. Loan Term', els.investmentLoanTerm.value + ' yrs'],
+    ['Annual Income',  formatCurrency(parseMoney(els.income))],
+    ['Tax Rate',       (taxRate * 100).toFixed(1) + '%'],
+  );
+
+  if (activeTab !== 'property') {
+    pairs.push(
+      ['Expected Return', els.investmentReturn.value + '% p.a.'],
+      ['Dividend Yield',  els.dividendYield.value + '% p.a.'],
+    );
+    const franking = parseFloat(els.frankingPct.value) || 0;
+    if (franking > 0) pairs.push(['Franking', franking + '% franked']);
+  }
+
+  pairs.push(['Projection', els.years.value + ' years']);
+
+  $('printInputsGrid').innerHTML = pairs.map(([label, value]) =>
+    `<div class="pi-row"><span class="pi-label">${label}</span><span class="pi-value">${value}</span></div>`
+  ).join('');
+}
+
 function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = null }) {
   els.placeholder.style.display = 'none';
   els.results.style.display = 'flex';
+  populatePrintInputs();
 
   const last  = rows[rows.length - 1];
   const first = rows[0];
