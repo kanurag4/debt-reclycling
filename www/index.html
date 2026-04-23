@@ -105,9 +105,22 @@
           <input type="number" id="ipGrowth" min="0" max="20" step="0.1" value="5.0">
         </div>
         <div class="field">
+          <label>State <span class="tip" data-tip="Sets the approximate stamp duty rate. Rates shown are indicative — actual rates vary by property value and concessions. Override the amount manually if needed.">?</span></label>
+          <select id="propertyState">
+            <option value="NSW">NSW (~3.9%)</option>
+            <option value="VIC">VIC (~5.5%)</option>
+            <option value="QLD">QLD (~3.5%)</option>
+            <option value="SA">SA (~4.0%)</option>
+            <option value="WA">WA (~3.5%)</option>
+            <option value="TAS">TAS (~3.5%)</option>
+            <option value="ACT">ACT (~3.5%)</option>
+            <option value="NT">NT (~4.5%)</option>
+          </select>
+        </div>
+        <div class="field">
           <label>
             Stamp Duty &amp; Costs ($)
-            <span class="tip" data-tip="Upfront purchase costs including stamp duty. Auto-calculated at 3.9% of purchase price — edit to override. Deducted from equity released.">?</span>
+            <span class="tip" data-tip="Upfront purchase costs including stamp duty. Auto-calculated from state rate — edit to override. Deducted from equity released.">?</span>
             <span class="auto-tag" id="autoStampTag">auto</span>
           </label>
           <div class="repayment-row">
@@ -159,11 +172,21 @@
             <label>Dividend Yield (% p.a.) <span class="tip" data-tip="Portion of the total return paid as dividends (cash). The rest is capital growth.">?</span></label>
             <input type="number" id="dividendYield" min="0" max="20" step="0.1" value="4.0">
           </div>
+          <div class="field">
+            <label>Franking (% franked) <span class="tip" data-tip="Percentage of dividends that carry franking credits (pre-paid 30% corporate tax). E.g. VAS is typically 70–100% franked. Set to 0 if you are unsure.">?</span></label>
+            <input type="number" id="frankingPct" min="0" max="100" step="5" value="0" placeholder="0">
+          </div>
         </div>
         <div class="field">
           <label>Projection Period: <span id="yearsLabel">20 years</span></label>
           <input type="range" id="years" min="5" max="30" step="1" value="20">
           <div class="range-row"><span>5 yrs</span><span>30 yrs</span></div>
+        </div>
+        <div class="field sensitivity-field">
+          <label class="checkbox-label">
+            <input type="checkbox" id="sensitivityCheck">
+            Show ±2% return sensitivity
+          </label>
         </div>
       </div>
 
@@ -203,6 +226,8 @@
         </div>
 
         <div class="verdict pass" id="verdict"></div>
+
+        <div id="outOfPocketNote" class="out-of-pocket-note" style="display:none"></div>
 
         <div class="chart-card">
           <h3>Loan Balance Over Time</h3>

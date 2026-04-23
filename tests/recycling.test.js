@@ -133,3 +133,38 @@ test('return < interest rate → recycling still saves via tax', () => {
   const rows = runScenario({ ...BASE, investmentReturn: 0.04, dividendYield: 0.02 });
   assert.ok(rows[0].taxSaving > 0);
 });
+
+// Franking credits
+test('frankingPct=0 (default) → netDividends same as grossDividends × (1 - taxRate)', () => {
+  const rows = runScenario({ ...BASE, frankingPct: 0 });
+  // $100k × 4% = $4,000 gross dividends; net = $4,000 × (1 - 0.345) = $2,620
+  near(rows[0].netDividends, 2620, 5);
+});
+
+test('frankingPct=1 (100% franked) → netDividends larger than unranked', () => {
+  const rowsNo  = runScenario({ ...BASE, frankingPct: 0 });
+  const rowsFull = runScenario({ ...BASE, frankingPct: 1 });
+  assert.ok(rowsFull[0].netDividends > rowsNo[0].netDividends,
+    `franked (${rowsFull[0].netDividends.toFixed(0)}) should exceed unfranked (${rowsNo[0].netDividends.toFixed(0)})`);
+});
+
+test('frankingPct=1 → netDividends ≈ grossDividends × (1 + 30/70) × (1 - taxRate)', () => {
+  const rows = runScenario({ ...BASE, frankingPct: 1 });
+  // grossDividends=$4,000; frankingCredit=$4,000×(30/70)≈$1,714; taxable=$5,714; net=$5,714×0.655≈$3,743
+  near(rows[0].netDividends, 3743, 5);
+});
+
+test('frankingPct=0.7 → netDividends between unfranked and fully franked', () => {
+  const rowsNo   = runScenario({ ...BASE, frankingPct: 0 });
+  const rows70   = runScenario({ ...BASE, frankingPct: 0.7 });
+  const rowsFull = runScenario({ ...BASE, frankingPct: 1 });
+  assert.ok(rows70[0].netDividends > rowsNo[0].netDividends);
+  assert.ok(rows70[0].netDividends < rowsFull[0].netDividends);
+});
+
+test('omitting frankingPct → same result as frankingPct=0 (backward compat)', () => {
+  const rowsDefault = runScenario(BASE);
+  const rowsZero    = runScenario({ ...BASE, frankingPct: 0 });
+  near(rowsDefault[0].netDividends, rowsZero[0].netDividends, 0.01);
+  near(rowsDefault[0].taxSaving,    rowsZero[0].taxSaving,    0.01);
+});

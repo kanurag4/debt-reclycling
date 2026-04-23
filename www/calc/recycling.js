@@ -11,6 +11,7 @@
 //   taxRate             - marginal tax rate (e.g. 0.345)
 //   investmentReturn    - total expected annual return (e.g. 0.07)
 //   dividendYield       - portion paid as dividends / rental yield (e.g. 0.04)
+//   frankingPct         - fraction of dividends that are franked (0–1, default 0)
 //   years               - projection length
 //   propertyValue       - used for LVR check (mode 2 & 3)
 //   releaseAmount       - equity being released (mode 2 & 3; 0 for offset mode)
@@ -37,8 +38,9 @@ function runScenario(inputs) {
     releaseAmount = 0,
   } = inputs;
 
-  const investmentRate    = inputs.investmentRate    ?? interestRate;
+  const investmentRate     = inputs.investmentRate     ?? interestRate;
   const investmentLoanTerm = inputs.investmentLoanTerm ?? null;
+  const frankingPct        = inputs.frankingPct        ?? 0;  // 0–1 fraction
 
   // Fixed annual P&I repayment on investment loan.
   // null investmentLoanTerm → interest-only (IO): no principal reduction.
@@ -67,7 +69,8 @@ function runScenario(inputs) {
     // Portfolio grows by capital appreciation only.
     // Dividends are paid out as cash and flow toward investment loan repayment.
     const grossDividends = investmentValue * dividendYield;
-    const netDividends   = grossDividends * (1 - taxRate);
+    const frankingCredit = grossDividends * frankingPct * (30 / 70);
+    const netDividends   = (grossDividends + frankingCredit) * (1 - taxRate);
     const capitalGrowth  = investmentValue * (investmentReturn - dividendYield);
     investmentValue      = investmentValue + capitalGrowth;
 

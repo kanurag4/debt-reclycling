@@ -40,8 +40,12 @@ const els = {
   // investment assumptions
   investmentReturn:   $('investmentReturn'),
   dividendYield:      $('dividendYield'),
+  frankingPct:        $('frankingPct'),
   years:              $('years'),
   yearsLabel:         $('yearsLabel'),
+  sensitivityCheck:   $('sensitivityCheck'),
+  // property
+  propertyState:      $('propertyState'),
   // warnings
   lvrWarning:         $('lvr-warning'),
   repaymentWarning:   $('repayment-warning'),
@@ -58,6 +62,7 @@ const els = {
   cardWealthGain:     $('cardWealthGain'),
   cardWealthSub:      $('cardWealthSub'),
   verdict:            $('verdict'),
+  outOfPocketNote:    $('outOfPocketNote'),
   yearTableBody:      $('yearTableBody'),
 };
 
@@ -73,10 +78,16 @@ const DEFAULTS = {
   offsetBalance: 100000,
   equityRelease: 100000, refinancingCosts: 0,
   equityReleaseP: 100000, ipPrice: 600000, rentalYield: 4.0, ipGrowth: 5.0, stampDuty: 0,
+  propertyState: 'NSW',
   investmentRate: 6.0, investmentLoanTerm: 30,
   income: 120000, taxRateOverride: '',
-  investmentReturn: 7.0, dividendYield: 4.0, years: 20,
+  investmentReturn: 7.0, dividendYield: 4.0, frankingPct: 0, years: 20,
   tab: 'offset', repaymentManual: false, stampDutyManual: false,
+};
+
+const STAMP_DUTY_RATES = {
+  NSW: 0.039, VIC: 0.055, QLD: 0.035, SA: 0.040,
+  WA: 0.035, TAS: 0.035, ACT: 0.035, NT: 0.045,
 };
 
 // ── Money formatting ──────────────────────────────────────────────────────────
@@ -141,6 +152,10 @@ function bindEvents() {
   els.ipPrice.addEventListener('input', onIpPriceChange);
   els.stampDuty.addEventListener('input', onStampDutyManualEdit);
   els.resetStampBtn.addEventListener('click', onResetStampDuty);
+  els.propertyState.addEventListener('change', () => {
+    if (!stampDutyManual) autoCalcStampDuty();
+    saveToStorage();
+  });
 
   // Effective rate + monthly cost
   els.income.addEventListener('input', () => { updateTaxRateDisplay(); updateEffectiveRate(); });
@@ -156,6 +171,12 @@ function bindEvents() {
   els.calculateBtn.addEventListener('click', onCalculate);
   els.resetBtn.addEventListener('click', onReset);
   els.downloadPdfBtn.addEventListener('click', () => window.print());
+
+  // Resize charts when year table opens — prevents Chart.js overdrawing on layout shift
+  $('yearDetails').addEventListener('toggle', () => {
+    if (loanChart)   loanChart.resize();
+    if (wealthChart) wealthChart.resize();
+  });
 
   document.querySelectorAll('input, select').forEach(el => el.addEventListener('change', saveToStorage));
 }
@@ -205,7 +226,8 @@ function onIpPriceChange() {
 
 function autoCalcStampDuty() {
   const price = parseMoney(els.ipPrice);
-  els.stampDuty.value = formatMoneyVal(Math.round(price * 0.039));
+  const rate  = STAMP_DUTY_RATES[els.propertyState.value] ?? 0.039;
+  els.stampDuty.value = formatMoneyVal(Math.round(price * rate));
   els.autoStampTag.classList.remove('hidden');
   updateNetEquity();
   updateInvLoanRepay();
@@ -296,12 +318,14 @@ function saveToStorage() {
     rentalYield:      els.rentalYield.value,
     ipGrowth:         els.ipGrowth.value,
     stampDuty:        els.stampDuty.value,
+    propertyState:    els.propertyState.value,
     investmentRate:      els.investmentRate.value,
     investmentLoanTerm:  els.investmentLoanTerm.value,
     income:           els.income.value,
     taxRateOverride:  els.taxRateOverride.value,
     investmentReturn: els.investmentReturn.value,
     dividendYield:    els.dividendYield.value,
+    frankingPct:      els.frankingPct.value,
     years:            els.years.value,
   }));
 }
@@ -336,6 +360,8 @@ function loadFromStorage() {
   els.taxRateOverride.value   = d.taxRateOverride;
   els.investmentReturn.value  = d.investmentReturn;
   els.dividendYield.value     = d.dividendYield;
+  els.frankingPct.value       = d.frankingPct ?? 0;
+  els.propertyState.value     = d.propertyState || 'NSW';
   els.years.value             = d.years;
 
   els.autoRepayTag.classList.toggle('hidden', repaymentManual);
@@ -373,6 +399,8 @@ function onReset() {
   els.taxRateOverride.value    = '';
   els.investmentReturn.value   = DEFAULTS.investmentReturn;
   els.dividendYield.value      = DEFAULTS.dividendYield;
+  els.frankingPct.value        = DEFAULTS.frankingPct;
+  els.propertyState.value      = DEFAULTS.propertyState;
   els.years.value              = DEFAULTS.years;
 
   els.autoRepayTag.classList.remove('hidden');
@@ -436,13 +464,21 @@ function onCalculate() {
 
   const investmentLoanTerm = parseInt(els.investmentLoanTerm.value) || 30;
 
+  const frankingPct = (parseFloat(els.frankingPct.value) || 0) / 100;
+
   const scenarioInputs = {
     loanBalance, interestRate, investmentRate, investmentLoanTerm,
     monthlyRepayment, recycleAmount,
-    taxRate, investmentReturn, dividendYield, years, propertyValue, releaseAmount,
+    taxRate, investmentReturn, dividendYield, frankingPct, years, propertyValue, releaseAmount,
   };
 
   const rows = runScenario(scenarioInputs);
+
+  let rowsHigh = null, rowsLow = null;
+  if (els.sensitivityCheck.checked) {
+    rowsHigh = runScenario({ ...scenarioInputs, investmentReturn: investmentReturn + 0.02 });
+    rowsLow  = runScenario({ ...scenarioInputs, investmentReturn: Math.max(investmentReturn - 0.02, 0) });
+  }
 
   const totalTaxSaved = rows.reduce((sum, r) => sum + r.taxSaving, 0);
 
@@ -454,12 +490,12 @@ function onCalculate() {
     els.lvrWarning.style.display = 'none';
   }
 
-  renderResults(rows, years, { totalTaxSaved });
+  renderResults(rows, years, { totalTaxSaved, rowsHigh, rowsLow });
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults(rows, years, { totalTaxSaved }) {
+function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = null }) {
   els.placeholder.style.display = 'none';
   els.results.style.display = 'flex';
 
@@ -493,6 +529,16 @@ function renderResults(rows, years, { totalTaxSaved }) {
     v.textContent = `Not beneficial under these assumptions — recycling trails by ${formatCurrency(Math.abs(wealthGain))}.`;
   }
 
+  // Out-of-pocket note (negatively geared)
+  const year1CashFlow = first.netCashFlow;
+  if (year1CashFlow < 0) {
+    els.outOfPocketNote.style.display = 'block';
+    els.outOfPocketNote.textContent =
+      `Out-of-pocket cost: ~${formatCurrency(Math.round(-year1CashFlow))}/yr from salary — this strategy is negatively geared. You fund the shortfall from your income.`;
+  } else {
+    els.outOfPocketNote.style.display = 'none';
+  }
+
   // Charts
   const labels = rows.map(r => `Yr ${r.year}`);
 
@@ -501,10 +547,18 @@ function renderResults(rows, years, { totalTaxSaved }) {
     { label: 'Baseline (no recycling)', data: rows.map(r => r.baselineBalance),  color: '#94a3b8' },
   ], loanChart, c => { loanChart = c; });
 
-  renderLineChart('wealthChart', labels, [
+  const wealthDatasets = [
     { label: 'Net Wealth (recycling)', data: rows.map(r => r.netWealthRecycling), color: '#22c55e' },
     { label: 'Net Wealth (baseline)',  data: rows.map(r => r.netWealthBaseline),  color: '#94a3b8' },
-  ], wealthChart, c => { wealthChart = c; });
+  ];
+  if (rowsHigh) wealthDatasets.push(
+    { label: 'Optimistic (+2%)', data: rowsHigh.map(r => r.netWealthRecycling), color: '#86efac', dash: [6, 4] }
+  );
+  if (rowsLow) wealthDatasets.push(
+    { label: 'Pessimistic (−2%)', data: rowsLow.map(r => r.netWealthRecycling), color: '#f59e0b', dash: [6, 4] }
+  );
+
+  renderLineChart('wealthChart', labels, wealthDatasets, wealthChart, c => { wealthChart = c; });
 
   // Table
   els.yearTableBody.innerHTML = '';
@@ -536,6 +590,7 @@ function renderLineChart(canvasId, labels, datasets, existingChart, setChart) {
       datasets: datasets.map(d => ({
         label: d.label, data: d.data, borderColor: d.color,
         backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3,
+        borderDash: d.dash || [],
       })),
     },
     options: {
@@ -563,4 +618,5 @@ function hideResults() {
   els.results.style.display = 'none';
   els.lvrWarning.style.display = 'none';
   els.repaymentWarning.style.display = 'none';
+  els.outOfPocketNote.style.display = 'none';
 }
