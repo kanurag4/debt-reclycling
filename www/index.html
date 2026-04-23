@@ -129,6 +129,18 @@
           </div>
           <div class="derived" id="netEquityDisplay">Net deposit after costs: —</div>
         </div>
+        <div class="field">
+          <label>
+            Annual Maintenance ($)
+            <span class="tip" data-tip="Estimated annual maintenance and repair costs for the investment property. Tax-deductible as a rental expense. Auto-set to 1% of purchase price — a common rule of thumb (range: 0.4%–2% depending on property age).">?</span>
+            <span class="auto-tag" id="autoMaintTag">auto</span>
+          </label>
+          <div class="repayment-row">
+            <input type="text" inputmode="numeric" id="maintenanceCost" class="money-input" placeholder="0">
+            <button type="button" id="resetMaintBtn" class="repay-reset" title="Reset to 1% of purchase price">↺</button>
+          </div>
+          <div class="derived" id="maintPctDisplay">—</div>
+        </div>
       </div>
 
       <!-- Investment Loan -->
@@ -236,11 +248,13 @@
 
         <div class="chart-card">
           <h3>Loan Balance Over Time</h3>
+          <p class="chart-explainer">Your home loan balance shrinks over time. The recycling line falls faster because investment income and tax savings are redirected as extra repayments on the non-deductible portion.</p>
           <canvas id="loanChart"></canvas>
         </div>
 
         <div class="chart-card">
           <h3>Net Wealth Over Time</h3>
+          <p class="chart-explainer">Net wealth = investment portfolio value minus total loan balance. A widening gap between the recycling and baseline lines means debt recycling is building more wealth than doing nothing.</p>
           <canvas id="wealthChart"></canvas>
         </div>
 
@@ -248,6 +262,20 @@
 
         <details class="table-card" id="yearDetails">
           <summary>Year-by-Year Breakdown</summary>
+          <div class="table-glossary">
+            <div class="glossary-title">Column guide</div>
+            <dl class="glossary-grid">
+              <div><dt>Non-Ded. Loan</dt><dd>Remaining home loan balance — the non-deductible portion you're paying down.</dd></div>
+              <div><dt>Total Loan</dt><dd>Home loan + investment loan combined. Falls steadily each year.</dd></div>
+              <div><dt>Baseline Loan</dt><dd>What your loan balance would be without debt recycling — for comparison.</dd></div>
+              <div><dt>Investment</dt><dd>Market value of your investment portfolio at end of year.</dd></div>
+              <div><dt>Inv. Loan Interest</dt><dd>Interest charged on the deductible investment loan this year — this is what generates your tax saving.</dd></div>
+              <div><dt>Tax Saving</dt><dd>Reduction in your tax bill from claiming investment loan interest as a deduction.</dd></div>
+              <div><dt>Net Cash Flow</dt><dd>Dividends + tax saving minus investment loan repayment. Positive = surplus cash applied to home loan; negative = out-of-pocket shortfall.</dd></div>
+              <div><dt>Net Wealth</dt><dd>Investment value minus total loan balance (debt recycling scenario).</dd></div>
+              <div><dt>Baseline Wealth</dt><dd>Net position without debt recycling — compare to Net Wealth to see the benefit.</dd></div>
+            </dl>
+          </div>
           <div class="table-wrap">
             <table>
               <thead>

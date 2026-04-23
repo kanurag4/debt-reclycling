@@ -12,6 +12,7 @@
 //   investmentReturn    - total expected annual return (e.g. 0.07)
 //   dividendYield       - portion paid as dividends / rental yield (e.g. 0.04)
 //   frankingPct         - fraction of dividends that are franked (0–1, default 0)
+//   maintenanceCost     - annual property maintenance cost in $ (deductible; default 0)
 //   years               - projection length
 //   propertyValue       - used for LVR check (mode 2 & 3)
 //   releaseAmount       - equity being released (mode 2 & 3; 0 for offset mode)
@@ -41,6 +42,7 @@ function runScenario(inputs) {
   const investmentRate     = inputs.investmentRate     ?? interestRate;
   const investmentLoanTerm = inputs.investmentLoanTerm ?? null;
   const frankingPct        = inputs.frankingPct        ?? 0;  // 0–1 fraction
+  const maintenanceCost    = inputs.maintenanceCost    ?? 0;  // annual $, deductible
 
   // Fixed annual P&I repayment on investment loan.
   // null investmentLoanTerm → interest-only (IO): no principal reduction.
@@ -75,10 +77,12 @@ function runScenario(inputs) {
     investmentValue      = investmentValue + capitalGrowth;
 
     // Net cash from recycling this year:
-    //   after-tax dividends + tax refund − investment loan repayment
+    //   after-tax dividends + tax refund − investment loan repayment − net maintenance cost
+    // Maintenance is deductible: net cost = maintenanceCost × (1 − taxRate)
     // IO fallback: annualInvRepayment = deductibleInterest → simplifies to netDividends − netInterestCost
-    const invRepayment   = annualInvRepayment ?? deductibleInterest;
-    const netCashFlow    = netDividends + taxSaving - invRepayment;
+    const invRepayment       = annualInvRepayment ?? deductibleInterest;
+    const netMaintenanceCost = maintenanceCost * (1 - taxRate);
+    const netCashFlow        = netDividends + taxSaving - invRepayment - netMaintenanceCost;
     const extraRepayment = Math.max(netCashFlow, 0);
 
     // Reduce investment loan by principal portion of P&I repayment (P&I mode only)

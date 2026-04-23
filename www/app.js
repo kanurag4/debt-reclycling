@@ -28,6 +28,10 @@ const els = {
   autoStampTag:       $('autoStampTag'),
   resetStampBtn:      $('resetStampBtn'),
   netEquityDisplay:   $('netEquityDisplay'),
+  maintenanceCost:    $('maintenanceCost'),
+  autoMaintTag:       $('autoMaintTag'),
+  resetMaintBtn:      $('resetMaintBtn'),
+  maintPctDisplay:    $('maintPctDisplay'),
   // investment loan
   investmentRate:       $('investmentRate'),
   investmentLoanTerm:   $('investmentLoanTerm'),
@@ -71,6 +75,7 @@ let loanChart = null;
 let wealthChart = null;
 let repaymentManual = false;
 let stampDutyManual = false;
+let maintenanceCostManual = false;
 
 const DEFAULTS = {
   loanBalance: 600000, propertyValue: 900000, interestRate: 6.0,
@@ -78,6 +83,7 @@ const DEFAULTS = {
   offsetBalance: 100000,
   equityRelease: 100000, refinancingCosts: 0,
   equityReleaseP: 100000, ipPrice: 600000, rentalYield: 4.0, ipGrowth: 5.0, stampDuty: 0,
+  maintenanceCost: 0, maintenanceCostManual: false,
   propertyState: 'NSW',
   investmentRate: 6.0, investmentLoanTerm: 30,
   income: 120000, taxRateOverride: '',
@@ -148,7 +154,7 @@ function bindEvents() {
   els.monthlyRepayment.addEventListener('input', onRepaymentManualEdit);
   els.resetRepayBtn.addEventListener('click', onResetRepayment);
 
-  // Auto stamp duty
+  // Auto stamp duty + auto maintenance
   els.ipPrice.addEventListener('input', onIpPriceChange);
   els.stampDuty.addEventListener('input', onStampDutyManualEdit);
   els.resetStampBtn.addEventListener('click', onResetStampDuty);
@@ -156,6 +162,8 @@ function bindEvents() {
     if (!stampDutyManual) autoCalcStampDuty();
     saveToStorage();
   });
+  els.maintenanceCost.addEventListener('input', onMaintenanceCostManualEdit);
+  els.resetMaintBtn.addEventListener('click', onResetMaintenanceCost);
 
   // Effective rate + monthly cost
   els.income.addEventListener('input', () => { updateTaxRateDisplay(); updateEffectiveRate(); });
@@ -222,6 +230,7 @@ function onResetRepayment() {
 
 function onIpPriceChange() {
   if (!stampDutyManual) autoCalcStampDuty();
+  if (!maintenanceCostManual) autoCalcMaintenance();
 }
 
 function autoCalcStampDuty() {
@@ -243,6 +252,40 @@ function onStampDutyManualEdit() {
 function onResetStampDuty() {
   stampDutyManual = false;
   autoCalcStampDuty();
+}
+
+// ── Auto maintenance cost ───────────────────────────────────────────────────────
+
+function autoCalcMaintenance() {
+  const price = parseMoney(els.ipPrice);
+  els.maintenanceCost.value = price > 0 ? formatMoneyVal(Math.round(price * 0.01)) : '';
+  els.autoMaintTag.classList.remove('hidden');
+  updateMaintPctDisplay();
+  saveToStorage();
+}
+
+function onMaintenanceCostManualEdit() {
+  maintenanceCostManual = true;
+  els.autoMaintTag.classList.add('hidden');
+  updateMaintPctDisplay();
+}
+
+function onResetMaintenanceCost() {
+  maintenanceCostManual = false;
+  autoCalcMaintenance();
+}
+
+function updateMaintPctDisplay() {
+  const price = parseMoney(els.ipPrice);
+  const cost  = parseMoney(els.maintenanceCost);
+  if (price > 0 && cost > 0) {
+    const pct = (cost / price * 100).toFixed(1);
+    els.maintPctDisplay.textContent = `${pct}% of purchase price / yr`;
+  } else if (price > 0) {
+    els.maintPctDisplay.textContent = '0% of purchase price';
+  } else {
+    els.maintPctDisplay.textContent = '—';
+  }
 }
 
 function updateNetEquity() {
@@ -304,7 +347,7 @@ function updateYearsLabel() {
 
 function saveToStorage() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    tab: activeTab, repaymentManual, stampDutyManual,
+    tab: activeTab, repaymentManual, stampDutyManual, maintenanceCostManual,
     loanBalance:      els.loanBalance.value,
     propertyValue:    els.propertyValue.value,
     interestRate:     els.interestRate.value,
@@ -318,6 +361,7 @@ function saveToStorage() {
     rentalYield:      els.rentalYield.value,
     ipGrowth:         els.ipGrowth.value,
     stampDuty:        els.stampDuty.value,
+    maintenanceCost:  els.maintenanceCost.value,
     propertyState:    els.propertyState.value,
     investmentRate:      els.investmentRate.value,
     investmentLoanTerm:  els.investmentLoanTerm.value,
@@ -337,6 +381,7 @@ function loadFromStorage() {
 
   repaymentManual = !!d.repaymentManual;
   stampDutyManual = !!d.stampDutyManual;
+  maintenanceCostManual = !!d.maintenanceCostManual;
 
   // Money fields (formatted with commas)
   els.loanBalance.value      = formatMoneyVal(d.loanBalance);
@@ -348,6 +393,7 @@ function loadFromStorage() {
   els.equityReleaseP.value   = formatMoneyVal(d.equityReleaseP);
   els.ipPrice.value          = formatMoneyVal(d.ipPrice);
   els.stampDuty.value        = formatMoneyVal(d.stampDuty);
+  els.maintenanceCost.value  = formatMoneyVal(d.maintenanceCost);
   els.income.value           = formatMoneyVal(d.income);
 
   // Non-money fields
@@ -366,9 +412,11 @@ function loadFromStorage() {
 
   els.autoRepayTag.classList.toggle('hidden', repaymentManual);
   els.autoStampTag.classList.toggle('hidden', stampDutyManual);
+  els.autoMaintTag.classList.toggle('hidden', maintenanceCostManual);
 
   if (!repaymentManual) autoCalcRepayment();
   if (!stampDutyManual) autoCalcStampDuty();
+  if (!maintenanceCostManual) autoCalcMaintenance(); else updateMaintPctDisplay();
 
   updateNetEquity();
   switchTab(d.tab || 'offset');
@@ -388,6 +436,8 @@ function onReset() {
   els.equityReleaseP.value   = formatMoneyVal(DEFAULTS.equityReleaseP);
   els.ipPrice.value          = formatMoneyVal(DEFAULTS.ipPrice);
   els.stampDuty.value        = '';
+  els.maintenanceCost.value  = '';
+  maintenanceCostManual      = false;
   els.income.value           = formatMoneyVal(DEFAULTS.income);
 
   els.interestRate.value       = DEFAULTS.interestRate;
@@ -405,12 +455,14 @@ function onReset() {
 
   els.autoRepayTag.classList.remove('hidden');
   els.autoStampTag.classList.remove('hidden');
+  els.autoMaintTag.classList.remove('hidden');
 
   switchTab('offset');
   updateTaxRateDisplay();
   updateEffectiveRate();
   autoCalcRepayment();
   autoCalcStampDuty();
+  autoCalcMaintenance();
   updateInvLoanRepay();
   updateNetEquity();
   updateYearsLabel();
@@ -465,11 +517,13 @@ function onCalculate() {
   const investmentLoanTerm = parseInt(els.investmentLoanTerm.value) || 30;
 
   const frankingPct = (parseFloat(els.frankingPct.value) || 0) / 100;
+  const maintenanceCost = activeTab === 'property' ? parseMoney(els.maintenanceCost) : 0;
 
   const scenarioInputs = {
     loanBalance, interestRate, investmentRate, investmentLoanTerm,
     monthlyRepayment, recycleAmount,
-    taxRate, investmentReturn, dividendYield, frankingPct, years, propertyValue, releaseAmount,
+    taxRate, investmentReturn, dividendYield, frankingPct, maintenanceCost,
+    years, propertyValue, releaseAmount,
   };
 
   const rows = runScenario(scenarioInputs);
@@ -530,6 +584,7 @@ function populatePrintInputs() {
       ['Capital Growth',   els.ipGrowth.value + '% p.a.'],
       ['State',            els.propertyState.value],
       ['Stamp Duty',       formatCurrency(parseMoney(els.stampDuty))],
+      ['Annual Maintenance', formatCurrency(parseMoney(els.maintenanceCost))],
     );
   }
 

@@ -168,3 +168,18 @@ test('omitting frankingPct → same result as frankingPct=0 (backward compat)', 
   near(rowsDefault[0].netDividends, rowsZero[0].netDividends, 0.01);
   near(rowsDefault[0].taxSaving,    rowsZero[0].taxSaving,    0.01);
 });
+
+// Maintenance cost
+test('omitting maintenanceCost → same netCashFlow as maintenanceCost=0 (backward compat)', () => {
+  const rowsDefault = runScenario(BASE);
+  const rowsZero    = runScenario({ ...BASE, maintenanceCost: 0 });
+  near(rowsDefault[0].netCashFlow, rowsZero[0].netCashFlow, 0.01);
+});
+
+test('maintenanceCost reduces netCashFlow by maintenanceCost × (1 − taxRate)', () => {
+  const cost = 6000;
+  const rowsNo   = runScenario({ ...BASE, maintenanceCost: 0 });
+  const rowsWith = runScenario({ ...BASE, maintenanceCost: cost });
+  const expectedReduction = cost * (1 - BASE.taxRate);  // deductible expense
+  near(rowsNo[0].netCashFlow - rowsWith[0].netCashFlow, expectedReduction, 1);
+});
