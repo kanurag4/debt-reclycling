@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debt Recycling Calculator — KashVector</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header class="app-header">
+  <a href="/" class="home-logo" title="KashVector">
+    <img src="../favicon.ico" alt="KV" onerror="this.style.display='none'">
+  </a>
+  <h1>Debt Recycling Calculator</h1>
+  <p>Model whether converting your home loan to tax-deductible investment debt is right for you.</p>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="offset">Offset Strategy</button>
+    <button class="tab-btn" data-tab="stocks">Equity → Stocks/ETFs</button>
+    <button class="tab-btn" data-tab="property">Equity → Property</button>
+  </div>
+
+  <div class="layout">
+    <!-- ── Input panel ── -->
+    <aside class="input-panel">
+
+      <!-- Home Loan -->
+      <div>
+        <div class="section-title">Home Loan</div>
+        <div class="field">
+          <label>Loan Balance ($) <span class="tip" data-tip="Your current outstanding home loan balance.">?</span></label>
+          <input type="text" inputmode="numeric" id="loanBalance" class="money-input" placeholder="600,000">
+        </div>
+        <div class="field">
+          <label>Property Value ($) <span class="tip" data-tip="Current market value of your property. Used to calculate LVR.">?</span></label>
+          <input type="text" inputmode="numeric" id="propertyValue" class="money-input" placeholder="900,000">
+        </div>
+        <div class="field">
+          <label>Interest Rate (% p.a.) <span class="tip" data-tip="Your home loan interest rate (non-deductible portion).">?</span></label>
+          <input type="number" id="interestRate" min="0" max="20" step="0.1" value="6.0">
+        </div>
+        <div class="field">
+          <label>Loan Term (years) <span class="tip" data-tip="Remaining years on your home loan. Used to auto-calculate monthly repayment.">?</span></label>
+          <input type="number" id="loanTerm" min="1" max="40" step="1" value="30">
+        </div>
+        <div class="field">
+          <label>
+            Monthly Repayment ($)
+            <span class="tip" data-tip="Scheduled monthly repayment. Auto-calculated — edit to override.">?</span>
+            <span class="auto-tag" id="autoRepayTag">auto</span>
+          </label>
+          <div class="repayment-row">
+            <input type="text" inputmode="numeric" id="monthlyRepayment" class="money-input" placeholder="0">
+            <button type="button" id="resetRepayBtn" class="repay-reset" title="Recalculate from loan details">↺</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strategy: Offset -->
+      <div id="fields-offset" class="strategy-fields active">
+        <div class="section-title">Offset Account</div>
+        <div class="field">
+          <label>Offset Balance ($) <span class="tip" data-tip="Cash in your offset account you'll redraw to invest. This becomes your deductible debt.">?</span></label>
+          <input type="text" inputmode="numeric" id="offsetBalance" class="money-input" placeholder="100,000">
+        </div>
+      </div>
+
+      <!-- Strategy: Equity → Stocks -->
+      <div id="fields-stocks" class="strategy-fields">
+        <div class="section-title">Equity Release</div>
+        <div class="field">
+          <label>Equity to Release ($) <span class="tip" data-tip="Amount to borrow against your property equity to invest in stocks/ETFs.">?</span></label>
+          <input type="text" inputmode="numeric" id="equityRelease" class="money-input" placeholder="100,000">
+        </div>
+        <div class="field">
+          <label>Refinancing Costs ($) <span class="tip" data-tip="One-off costs to set up the investment loan split (optional).">?</span></label>
+          <input type="text" inputmode="numeric" id="refinancingCosts" class="money-input" placeholder="0">
+        </div>
+      </div>
+
+      <!-- Strategy: Equity → Property -->
+      <div id="fields-property" class="strategy-fields">
+        <div class="section-title">Equity Release</div>
+        <div class="field">
+          <label>Equity to Release ($) <span class="tip" data-tip="Gross equity drawn from your home to fund the investment property purchase.">?</span></label>
+          <input type="text" inputmode="numeric" id="equityReleaseP" class="money-input" placeholder="100,000">
+        </div>
+
+        <div class="section-title" style="margin-top:8px">Investment Property</div>
+        <div class="field">
+          <label>Purchase Price ($)</label>
+          <input type="text" inputmode="numeric" id="ipPrice" class="money-input" placeholder="600,000">
+        </div>
+        <div class="field">
+          <label>Rental Yield (% p.a.) <span class="tip" data-tip="Gross rental income as a percentage of purchase price.">?</span></label>
+          <input type="number" id="rentalYield" min="0" max="20" step="0.1" value="4.0">
+        </div>
+        <div class="field">
+          <label>Capital Growth (% p.a.) <span class="tip" data-tip="Expected annual capital growth of the investment property.">?</span></label>
+          <input type="number" id="ipGrowth" min="0" max="20" step="0.1" value="5.0">
+        </div>
+        <div class="field">
+          <label>
+            Stamp Duty &amp; Costs ($)
+            <span class="tip" data-tip="Upfront purchase costs including stamp duty. Auto-calculated at 3.9% of purchase price — edit to override. Deducted from equity released.">?</span>
+            <span class="auto-tag" id="autoStampTag">auto</span>
+          </label>
+          <div class="repayment-row">
+            <input type="text" inputmode="numeric" id="stampDuty" class="money-input" placeholder="0">
+            <button type="button" id="resetStampBtn" class="repay-reset" title="Reset to 3.9% of purchase price">↺</button>
+          </div>
+          <div class="derived" id="netEquityDisplay">Net deposit after costs: —</div>
+        </div>
+      </div>
+
+      <!-- Investment Loan -->
+      <div>
+        <div class="section-title">Investment Loan</div>
+        <div class="field">
+          <label>Investment Loan Rate (% p.a.) <span class="tip" data-tip="Interest rate on the deductible investment loan. Often the same as or slightly above the home loan rate.">?</span></label>
+          <input type="number" id="investmentRate" min="0" max="20" step="0.1" value="6.0">
+          <div class="derived" id="effectiveRateDisplay">Effective rate after tax: —</div>
+          <div class="derived" id="invLoanRepayDisplay">Monthly interest (I/O): —</div>
+        </div>
+        <div class="field">
+          <label>Investment Loan Term (years) <span class="tip" data-tip="Loan term for the investment split. Used to show indicative P&amp;I repayment. Calculation uses interest-only, which is standard for debt recycling.">?</span></label>
+          <input type="number" id="investmentLoanTerm" min="1" max="40" step="1" value="30">
+        </div>
+      </div>
+
+      <!-- Income -->
+      <div>
+        <div class="section-title">Your Income</div>
+        <div class="field">
+          <label>Annual Income ($) <span class="tip" data-tip="Your taxable income. Used to calculate your marginal tax rate.">?</span></label>
+          <input type="text" inputmode="numeric" id="income" class="money-input" placeholder="120,000">
+          <div class="derived" id="taxRateDerived">Marginal rate: —</div>
+        </div>
+        <div class="field">
+          <label>Override Tax Rate (%) <span class="tip" data-tip="Optional. Leave blank to use the derived marginal rate above.">?</span></label>
+          <input type="number" id="taxRateOverride" min="0" max="60" step="0.5" placeholder="Auto">
+        </div>
+      </div>
+
+      <!-- Investment Assumptions (hidden for property tab) -->
+      <div>
+        <div class="section-title">Investment Assumptions</div>
+        <div id="inv-stocks-fields">
+          <div class="field">
+            <label>Expected Return (% p.a.) <span class="tip" data-tip="Total expected annual return from your investment (capital growth + dividends combined).">?</span></label>
+            <input type="number" id="investmentReturn" min="0" max="30" step="0.1" value="7.0">
+          </div>
+          <div class="field">
+            <label>Dividend Yield (% p.a.) <span class="tip" data-tip="Portion of the total return paid as dividends (cash). The rest is capital growth.">?</span></label>
+            <input type="number" id="dividendYield" min="0" max="20" step="0.1" value="4.0">
+          </div>
+        </div>
+        <div class="field">
+          <label>Projection Period: <span id="yearsLabel">20 years</span></label>
+          <input type="range" id="years" min="5" max="30" step="1" value="20">
+          <div class="range-row"><span>5 yrs</span><span>30 yrs</span></div>
+        </div>
+      </div>
+
+      <div id="lvr-warning" class="warning-banner warn" style="display:none"></div>
+      <div id="repayment-warning" class="warning-banner warn" style="display:none">
+        Monthly repayment is below the interest-only minimum — your loan balance will grow.
+      </div>
+
+      <button class="btn-calculate" id="calculateBtn">Calculate</button>
+      <button class="btn-reset" id="resetBtn">Reset to defaults</button>
+
+    </aside>
+
+    <!-- ── Results panel ── -->
+    <section class="results-panel" id="resultsPanel">
+      <div class="placeholder" id="placeholder">
+        Enter your details and click <strong>Calculate</strong> to see your debt recycling projection.
+      </div>
+
+      <div id="results" style="display:none; flex-direction:column; gap:14px;">
+        <div class="summary-cards">
+          <div class="summary-card">
+            <div class="card-label">Tax Saving / yr</div>
+            <div class="card-value pass" id="cardTaxSaving">—</div>
+            <div class="card-sub">Year 1 estimate</div>
+          </div>
+          <div class="summary-card">
+            <div class="card-label">Total Tax Saved</div>
+            <div class="card-value pass" id="cardTotalTax">—</div>
+            <div class="card-sub" id="cardTotalTaxSub">over projection</div>
+          </div>
+          <div class="summary-card">
+            <div class="card-label">Wealth Gain</div>
+            <div class="card-value pass" id="cardWealthGain">—</div>
+            <div class="card-sub" id="cardWealthSub">over projection</div>
+          </div>
+        </div>
+
+        <div class="verdict pass" id="verdict"></div>
+
+        <div class="chart-card">
+          <h3>Loan Balance Over Time</h3>
+          <canvas id="loanChart" height="220"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <h3>Net Wealth Over Time</h3>
+          <canvas id="wealthChart" height="220"></canvas>
+        </div>
+
+        <button class="btn-pdf" id="downloadPdfBtn">Download PDF</button>
+
+        <details class="table-card" id="yearDetails">
+          <summary>Year-by-Year Breakdown</summary>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th>Non-Ded. Loan</th>
+                  <th>Total Loan</th>
+                  <th>Baseline Loan</th>
+                  <th>Investment</th>
+                  <th>Inv. Loan Interest</th>
+                  <th>Tax Saving</th>
+                  <th>Net Cash Flow</th>
+                  <th>Net Wealth</th>
+                  <th>Baseline Wealth</th>
+                </tr>
+              </thead>
+              <tbody id="yearTableBody"></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer style="text-align:center;padding:24px;color:var(--kv-muted);font-size:0.8rem;">
+  KashVector — for educational purposes only. Not financial advice.
+</footer>
+
+<script src="utils.js"></script>
+<script src="calc/tax.js"></script>
+<script src="calc/amortization.js"></script>
+<script src="calc/recycling.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

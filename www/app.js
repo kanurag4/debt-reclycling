@@ -1,0 +1,586 @@
+// Main UI logic — only file allowed to touch the DOM or localStorage.
+
+const $ = (id) => document.getElementById(id);
+
+const STORAGE_KEY = 'debt_recycling_inputs';
+
+const els = {
+  tabs:               document.querySelectorAll('.tab-btn'),
+  // home loan
+  loanBalance:        $('loanBalance'),
+  propertyValue:      $('propertyValue'),
+  interestRate:       $('interestRate'),
+  loanTerm:           $('loanTerm'),
+  monthlyRepayment:   $('monthlyRepayment'),
+  autoRepayTag:       $('autoRepayTag'),
+  resetRepayBtn:      $('resetRepayBtn'),
+  // offset
+  offsetBalance:      $('offsetBalance'),
+  // stocks
+  equityRelease:      $('equityRelease'),
+  refinancingCosts:   $('refinancingCosts'),
+  // property
+  equityReleaseP:     $('equityReleaseP'),
+  ipPrice:            $('ipPrice'),
+  rentalYield:        $('rentalYield'),
+  ipGrowth:           $('ipGrowth'),
+  stampDuty:          $('stampDuty'),
+  autoStampTag:       $('autoStampTag'),
+  resetStampBtn:      $('resetStampBtn'),
+  netEquityDisplay:   $('netEquityDisplay'),
+  // investment loan
+  investmentRate:       $('investmentRate'),
+  investmentLoanTerm:   $('investmentLoanTerm'),
+  effectiveRateDisplay: $('effectiveRateDisplay'),
+  invLoanRepayDisplay:  $('invLoanRepayDisplay'),
+  // income
+  income:             $('income'),
+  taxRateOverride:    $('taxRateOverride'),
+  taxRateDerived:     $('taxRateDerived'),
+  // investment assumptions
+  investmentReturn:   $('investmentReturn'),
+  dividendYield:      $('dividendYield'),
+  years:              $('years'),
+  yearsLabel:         $('yearsLabel'),
+  // warnings
+  lvrWarning:         $('lvr-warning'),
+  repaymentWarning:   $('repayment-warning'),
+  // buttons
+  calculateBtn:       $('calculateBtn'),
+  resetBtn:           $('resetBtn'),
+  downloadPdfBtn:     $('downloadPdfBtn'),
+  // results
+  placeholder:        $('placeholder'),
+  results:            $('results'),
+  cardTaxSaving:      $('cardTaxSaving'),
+  cardTotalTax:       $('cardTotalTax'),
+  cardTotalTaxSub:    $('cardTotalTaxSub'),
+  cardWealthGain:     $('cardWealthGain'),
+  cardWealthSub:      $('cardWealthSub'),
+  verdict:            $('verdict'),
+  yearTableBody:      $('yearTableBody'),
+};
+
+let activeTab = 'offset';
+let loanChart = null;
+let wealthChart = null;
+let repaymentManual = false;
+let stampDutyManual = false;
+
+const DEFAULTS = {
+  loanBalance: 600000, propertyValue: 900000, interestRate: 6.0,
+  loanTerm: 30, monthlyRepayment: 0,
+  offsetBalance: 100000,
+  equityRelease: 100000, refinancingCosts: 0,
+  equityReleaseP: 100000, ipPrice: 600000, rentalYield: 4.0, ipGrowth: 5.0, stampDuty: 0,
+  investmentRate: 6.0, investmentLoanTerm: 30,
+  income: 120000, taxRateOverride: '',
+  investmentReturn: 7.0, dividendYield: 4.0, years: 20,
+  tab: 'offset', repaymentManual: false, stampDutyManual: false,
+};
+
+// ── Money formatting ──────────────────────────────────────────────────────────
+
+function parseMoney(el) {
+  return parseInt(String(el.value).replace(/,/g, ''), 10) || 0;
+}
+
+function formatMoneyVal(n) {
+  const num = parseInt(String(n).replace(/,/g, ''), 10);
+  return isNaN(num) || num === 0 ? '' : num.toLocaleString('en-AU');
+}
+
+function formatMoneyInput(el) {
+  const pos = el.selectionStart;
+  const oldVal = el.value;
+  const digitsBeforeCursor = (oldVal.slice(0, pos).match(/\d/g) || []).length;
+
+  const raw = oldVal.replace(/[^\d]/g, '');
+  if (!raw) { el.value = ''; return; }
+
+  const formatted = Number(raw).toLocaleString('en-AU');
+  el.value = formatted;
+
+  // Restore cursor position relative to digit count
+  let digitCount = 0;
+  let newPos = formatted.length;
+  for (let i = 0; i < formatted.length; i++) {
+    if (/\d/.test(formatted[i])) digitCount++;
+    if (digitCount === digitsBeforeCursor) { newPos = i + 1; break; }
+  }
+  el.setSelectionRange(newPos, newPos);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+loadFromStorage();
+updateTaxRateDisplay();
+updateEffectiveRate();
+updateInvLoanRepay();
+updateYearsLabel();
+bindEvents();
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+function bindEvents() {
+  els.tabs.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
+  // Money input formatting
+  document.querySelectorAll('.money-input').forEach(el => {
+    el.addEventListener('input', () => formatMoneyInput(el));
+  });
+
+  // Auto-repayment
+  els.loanBalance.addEventListener('input', onLoanDetailsChange);
+  els.interestRate.addEventListener('input', onLoanDetailsChange);
+  els.loanTerm.addEventListener('input', onLoanDetailsChange);
+  els.monthlyRepayment.addEventListener('input', onRepaymentManualEdit);
+  els.resetRepayBtn.addEventListener('click', onResetRepayment);
+
+  // Auto stamp duty
+  els.ipPrice.addEventListener('input', onIpPriceChange);
+  els.stampDuty.addEventListener('input', onStampDutyManualEdit);
+  els.resetStampBtn.addEventListener('click', onResetStampDuty);
+
+  // Effective rate + monthly cost
+  els.income.addEventListener('input', () => { updateTaxRateDisplay(); updateEffectiveRate(); });
+  els.taxRateOverride.addEventListener('input', updateEffectiveRate);
+  els.investmentRate.addEventListener('input', () => { updateEffectiveRate(); updateInvLoanRepay(); });
+  els.investmentLoanTerm.addEventListener('input', updateInvLoanRepay);
+  els.offsetBalance.addEventListener('input', updateInvLoanRepay);
+  els.equityRelease.addEventListener('input', updateInvLoanRepay);
+  els.equityReleaseP.addEventListener('input', () => { updateInvLoanRepay(); updateNetEquity(); });
+  els.stampDuty.addEventListener('input', () => { updateInvLoanRepay(); updateNetEquity(); });
+
+  els.years.addEventListener('input', updateYearsLabel);
+  els.calculateBtn.addEventListener('click', onCalculate);
+  els.resetBtn.addEventListener('click', onReset);
+  els.downloadPdfBtn.addEventListener('click', () => window.print());
+
+  document.querySelectorAll('input, select').forEach(el => el.addEventListener('change', saveToStorage));
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  els.tabs.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.strategy-fields').forEach(el => el.classList.remove('active'));
+  $(`fields-${tab}`).classList.add('active');
+  $('inv-stocks-fields').style.display = tab === 'property' ? 'none' : '';
+  updateInvLoanRepay();
+  saveToStorage();
+}
+
+// ── Auto-repayment ─────────────────────────────────────────────────────────────
+
+function onLoanDetailsChange() {
+  if (!repaymentManual) autoCalcRepayment();
+}
+
+function autoCalcRepayment() {
+  const balance = parseMoney(els.loanBalance);
+  const rate    = (parseFloat(els.interestRate.value) || 0) / 100;
+  const term    = parseInt(els.loanTerm.value) || 30;
+  if (balance > 0 && rate > 0 && term > 0) {
+    els.monthlyRepayment.value = formatMoneyVal(Math.round(monthlyPayment(balance, rate, term)));
+  }
+  els.autoRepayTag.classList.remove('hidden');
+  saveToStorage();
+}
+
+function onRepaymentManualEdit() {
+  repaymentManual = true;
+  els.autoRepayTag.classList.add('hidden');
+}
+
+function onResetRepayment() {
+  repaymentManual = false;
+  autoCalcRepayment();
+}
+
+// ── Auto stamp duty ────────────────────────────────────────────────────────────
+
+function onIpPriceChange() {
+  if (!stampDutyManual) autoCalcStampDuty();
+}
+
+function autoCalcStampDuty() {
+  const price = parseMoney(els.ipPrice);
+  els.stampDuty.value = formatMoneyVal(Math.round(price * 0.039));
+  els.autoStampTag.classList.remove('hidden');
+  updateNetEquity();
+  updateInvLoanRepay();
+  saveToStorage();
+}
+
+function onStampDutyManualEdit() {
+  stampDutyManual = true;
+  els.autoStampTag.classList.add('hidden');
+  updateNetEquity();
+}
+
+function onResetStampDuty() {
+  stampDutyManual = false;
+  autoCalcStampDuty();
+}
+
+function updateNetEquity() {
+  const equity = parseMoney(els.equityReleaseP);
+  const duty   = parseMoney(els.stampDuty);
+  const net    = equity - duty;
+  els.netEquityDisplay.textContent = net > 0
+    ? `Net deposit after costs: ${formatCurrency(net)}`
+    : net < 0
+      ? 'Stamp duty exceeds equity released — increase equity or reduce costs'
+      : 'Net deposit after costs: —';
+  els.netEquityDisplay.style.color = net < 0 ? 'var(--kv-fail)' : '';
+}
+
+// ── Derived displays ──────────────────────────────────────────────────────────
+
+function updateTaxRateDisplay() {
+  const rate = marginalRate(parseMoney(els.income));
+  els.taxRateDerived.textContent = `Marginal rate: ${(rate * 100).toFixed(1)}%`;
+}
+
+function updateEffectiveRate() {
+  const invRate = (parseFloat(els.investmentRate.value) || 0) / 100;
+  const override = parseFloat(els.taxRateOverride.value);
+  const taxRate = isFinite(override) && els.taxRateOverride.value !== ''
+    ? override / 100
+    : marginalRate(parseMoney(els.income));
+  const effective = invRate * (1 - taxRate);
+  els.effectiveRateDisplay.textContent = invRate > 0
+    ? `Effective rate after tax: ${(effective * 100).toFixed(2)}% (saves ${((invRate - effective) * 100).toFixed(2)}% p.a.)`
+    : 'Effective rate after tax: —';
+}
+
+function updateInvLoanRepay() {
+  const rate = (parseFloat(els.investmentRate.value) || 0) / 100;
+  const term = parseInt(els.investmentLoanTerm.value) || 30;
+
+  let amount = 0;
+  if (activeTab === 'offset')        amount = parseMoney(els.offsetBalance);
+  else if (activeTab === 'stocks')   amount = parseMoney(els.equityRelease);
+  else if (activeTab === 'property') amount = Math.max(parseMoney(els.equityReleaseP) - parseMoney(els.stampDuty), 0);
+
+  if (amount <= 0 || rate <= 0) {
+    els.invLoanRepayDisplay.textContent = 'Monthly interest (I/O): —';
+    return;
+  }
+
+  const monthlyIO  = (amount * rate) / 12;
+  const monthlyPI  = monthlyPayment(amount, rate, term);
+  els.invLoanRepayDisplay.textContent =
+    `Monthly interest (I/O): ${formatCurrency(monthlyIO)} | P&I over ${term} yrs: ${formatCurrency(monthlyPI)}`;
+}
+
+function updateYearsLabel() {
+  els.yearsLabel.textContent = `${els.years.value} years`;
+}
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+
+function saveToStorage() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    tab: activeTab, repaymentManual, stampDutyManual,
+    loanBalance:      els.loanBalance.value,
+    propertyValue:    els.propertyValue.value,
+    interestRate:     els.interestRate.value,
+    loanTerm:         els.loanTerm.value,
+    monthlyRepayment: els.monthlyRepayment.value,
+    offsetBalance:    els.offsetBalance.value,
+    equityRelease:    els.equityRelease.value,
+    refinancingCosts: els.refinancingCosts.value,
+    equityReleaseP:   els.equityReleaseP.value,
+    ipPrice:          els.ipPrice.value,
+    rentalYield:      els.rentalYield.value,
+    ipGrowth:         els.ipGrowth.value,
+    stampDuty:        els.stampDuty.value,
+    investmentRate:      els.investmentRate.value,
+    investmentLoanTerm:  els.investmentLoanTerm.value,
+    income:           els.income.value,
+    taxRateOverride:  els.taxRateOverride.value,
+    investmentReturn: els.investmentReturn.value,
+    dividendYield:    els.dividendYield.value,
+    years:            els.years.value,
+  }));
+}
+
+function loadFromStorage() {
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch {}
+  const d = Object.assign({}, DEFAULTS, data);
+
+  repaymentManual = !!d.repaymentManual;
+  stampDutyManual = !!d.stampDutyManual;
+
+  // Money fields (formatted with commas)
+  els.loanBalance.value      = formatMoneyVal(d.loanBalance);
+  els.propertyValue.value    = formatMoneyVal(d.propertyValue);
+  els.monthlyRepayment.value = formatMoneyVal(d.monthlyRepayment);
+  els.offsetBalance.value    = formatMoneyVal(d.offsetBalance);
+  els.equityRelease.value    = formatMoneyVal(d.equityRelease);
+  els.refinancingCosts.value = formatMoneyVal(d.refinancingCosts);
+  els.equityReleaseP.value   = formatMoneyVal(d.equityReleaseP);
+  els.ipPrice.value          = formatMoneyVal(d.ipPrice);
+  els.stampDuty.value        = formatMoneyVal(d.stampDuty);
+  els.income.value           = formatMoneyVal(d.income);
+
+  // Non-money fields
+  els.interestRate.value      = d.interestRate;
+  els.loanTerm.value          = d.loanTerm;
+  els.rentalYield.value       = d.rentalYield;
+  els.ipGrowth.value          = d.ipGrowth;
+  els.investmentRate.value    = d.investmentRate;
+  els.investmentLoanTerm.value = d.investmentLoanTerm;
+  els.taxRateOverride.value   = d.taxRateOverride;
+  els.investmentReturn.value  = d.investmentReturn;
+  els.dividendYield.value     = d.dividendYield;
+  els.years.value             = d.years;
+
+  els.autoRepayTag.classList.toggle('hidden', repaymentManual);
+  els.autoStampTag.classList.toggle('hidden', stampDutyManual);
+
+  if (!repaymentManual) autoCalcRepayment();
+  if (!stampDutyManual) autoCalcStampDuty();
+
+  updateNetEquity();
+  switchTab(d.tab || 'offset');
+}
+
+function onReset() {
+  localStorage.removeItem(STORAGE_KEY);
+  repaymentManual = false;
+  stampDutyManual = false;
+
+  els.loanBalance.value      = formatMoneyVal(DEFAULTS.loanBalance);
+  els.propertyValue.value    = formatMoneyVal(DEFAULTS.propertyValue);
+  els.monthlyRepayment.value = '';
+  els.offsetBalance.value    = formatMoneyVal(DEFAULTS.offsetBalance);
+  els.equityRelease.value    = formatMoneyVal(DEFAULTS.equityRelease);
+  els.refinancingCosts.value = '';
+  els.equityReleaseP.value   = formatMoneyVal(DEFAULTS.equityReleaseP);
+  els.ipPrice.value          = formatMoneyVal(DEFAULTS.ipPrice);
+  els.stampDuty.value        = '';
+  els.income.value           = formatMoneyVal(DEFAULTS.income);
+
+  els.interestRate.value       = DEFAULTS.interestRate;
+  els.loanTerm.value           = DEFAULTS.loanTerm;
+  els.rentalYield.value        = DEFAULTS.rentalYield;
+  els.ipGrowth.value           = DEFAULTS.ipGrowth;
+  els.investmentRate.value     = DEFAULTS.investmentRate;
+  els.investmentLoanTerm.value = DEFAULTS.investmentLoanTerm;
+  els.taxRateOverride.value    = '';
+  els.investmentReturn.value   = DEFAULTS.investmentReturn;
+  els.dividendYield.value      = DEFAULTS.dividendYield;
+  els.years.value              = DEFAULTS.years;
+
+  els.autoRepayTag.classList.remove('hidden');
+  els.autoStampTag.classList.remove('hidden');
+
+  switchTab('offset');
+  updateTaxRateDisplay();
+  updateEffectiveRate();
+  autoCalcRepayment();
+  autoCalcStampDuty();
+  updateInvLoanRepay();
+  updateNetEquity();
+  updateYearsLabel();
+  hideResults();
+}
+
+// ── Calculate ─────────────────────────────────────────────────────────────────
+
+function onCalculate() {
+  saveToStorage();
+
+  const loanBalance      = parseMoney(els.loanBalance);
+  const propertyValue    = parseMoney(els.propertyValue);
+  const interestRate     = (parseFloat(els.interestRate.value) || 0) / 100;
+  const monthlyRepayment = parseMoney(els.monthlyRepayment);
+  const income           = parseMoney(els.income);
+  const years            = parseInt(els.years.value) || 20;
+  const investmentRate   = (parseFloat(els.investmentRate.value) || 0) / 100;
+
+  let investmentReturn, dividendYield;
+  if (activeTab === 'property') {
+    dividendYield    = (parseFloat(els.rentalYield.value) || 0) / 100;
+    investmentReturn = (parseFloat(els.ipGrowth.value)   || 0) / 100 + dividendYield;
+  } else {
+    investmentReturn = (parseFloat(els.investmentReturn.value) || 0) / 100;
+    dividendYield    = (parseFloat(els.dividendYield.value)    || 0) / 100;
+  }
+
+  const override = parseFloat(els.taxRateOverride.value);
+  const taxRate = isFinite(override) && els.taxRateOverride.value !== ''
+    ? override / 100
+    : marginalRate(income);
+
+  let recycleAmount = 0;
+  let releaseAmount = 0;
+
+  if (activeTab === 'offset') {
+    recycleAmount = parseMoney(els.offsetBalance);
+  } else if (activeTab === 'stocks') {
+    recycleAmount = parseMoney(els.equityRelease);
+    releaseAmount = recycleAmount;
+  } else if (activeTab === 'property') {
+    const equityGross = parseMoney(els.equityReleaseP);
+    const stampDuty   = parseMoney(els.stampDuty);
+    recycleAmount = Math.max(equityGross - stampDuty, 0);
+    releaseAmount = equityGross;
+  }
+
+  const interestOnlyMin = (loanBalance * interestRate) / 12;
+  els.repaymentWarning.style.display = monthlyRepayment < interestOnlyMin ? 'block' : 'none';
+
+  const investmentLoanTerm = parseInt(els.investmentLoanTerm.value) || 30;
+
+  const scenarioInputs = {
+    loanBalance, interestRate, investmentRate, investmentLoanTerm,
+    monthlyRepayment, recycleAmount,
+    taxRate, investmentReturn, dividendYield, years, propertyValue, releaseAmount,
+  };
+
+  const rows = runScenario(scenarioInputs);
+
+  const totalTaxSaved = rows.reduce((sum, r) => sum + r.taxSaving, 0);
+
+  if (rows.length && rows[0].lvrWarning) {
+    const lvr = ((loanBalance + releaseAmount) / propertyValue * 100).toFixed(1);
+    els.lvrWarning.style.display = 'block';
+    els.lvrWarning.textContent = `LVR after release: ${lvr}% — exceeds 80%. Lenders may require LMI or decline.`;
+  } else {
+    els.lvrWarning.style.display = 'none';
+  }
+
+  renderResults(rows, years, { totalTaxSaved });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function renderResults(rows, years, { totalTaxSaved }) {
+  els.placeholder.style.display = 'none';
+  els.results.style.display = 'flex';
+
+  const last  = rows[rows.length - 1];
+  const first = rows[0];
+
+  // Tax saving (year 1)
+  els.cardTaxSaving.textContent = formatCurrency(first.taxSaving);
+
+  // Total tax saved over projection
+  els.cardTotalTax.textContent    = formatCurrency(totalTaxSaved);
+  els.cardTotalTax.className      = 'card-value pass';
+  els.cardTotalTaxSub.textContent = `over ${years} years`;
+
+  // Wealth gain
+  const wealthGain = last.netWealthRecycling - last.netWealthBaseline;
+  els.cardWealthGain.textContent = formatCurrency(wealthGain);
+  els.cardWealthGain.className   = `card-value ${wealthGain >= 0 ? 'pass' : 'fail'}`;
+  els.cardWealthSub.textContent  = `after ${years} years`;
+
+  // Verdict
+  const v = els.verdict;
+  if (wealthGain > 50000) {
+    v.className   = 'verdict pass';
+    v.textContent = `Profitable — recycling builds ${formatCurrency(wealthGain)} more wealth over ${years} years.`;
+  } else if (wealthGain > 0) {
+    v.className   = 'verdict warn';
+    v.textContent = `Marginal benefit — ${formatCurrency(wealthGain)} ahead after ${years} years. Consider transaction costs.`;
+  } else {
+    v.className   = 'verdict fail';
+    v.textContent = `Not beneficial under these assumptions — recycling trails by ${formatCurrency(Math.abs(wealthGain))}.`;
+  }
+
+  // Charts — compute stable nice-rounded axis bounds so scale doesn't jump on recalculate
+  const labels = rows.map(r => `Yr ${r.year}`);
+
+  const loanVals  = rows.flatMap(r => [r.totalLoanBalance, r.baselineBalance]);
+  const loanMax   = niceAxisBound(Math.max(...loanVals), 'up');
+
+  const wealthVals = rows.flatMap(r => [r.netWealthRecycling, r.netWealthBaseline]);
+  const wealthMax  = niceAxisBound(Math.max(...wealthVals), 'up');
+  const wealthMin  = niceAxisBound(Math.min(...wealthVals), 'down');
+
+  renderLineChart('loanChart', labels, [
+    { label: 'Recycling (total loan)', data: rows.map(r => r.totalLoanBalance), color: '#38bdf8' },
+    { label: 'Baseline (no recycling)', data: rows.map(r => r.baselineBalance),  color: '#94a3b8' },
+  ], loanChart, c => { loanChart = c; }, { yMin: 0, yMax: loanMax });
+
+  renderLineChart('wealthChart', labels, [
+    { label: 'Net Wealth (recycling)', data: rows.map(r => r.netWealthRecycling), color: '#22c55e' },
+    { label: 'Net Wealth (baseline)',  data: rows.map(r => r.netWealthBaseline),  color: '#94a3b8' },
+  ], wealthChart, c => { wealthChart = c; }, { yMin: wealthMin, yMax: wealthMax });
+
+  // Table
+  els.yearTableBody.innerHTML = '';
+  rows.forEach(r => {
+    const wDiff = r.netWealthRecycling - r.netWealthBaseline;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.year}</td>
+      <td>${formatCurrency(r.nonDeductibleBalance)}</td>
+      <td>${formatCurrency(r.totalLoanBalance)}</td>
+      <td>${formatCurrency(r.baselineBalance)}</td>
+      <td>${formatCurrency(r.investmentValue)}</td>
+      <td class="td-warn">${formatCurrency(r.deductibleInterest)}</td>
+      <td class="td-pass">${formatCurrency(r.taxSaving)}</td>
+      <td class="${r.netCashFlow >= 0 ? 'td-pass' : 'td-warn'}">${formatCurrency(r.netCashFlow)}</td>
+      <td class="${wDiff >= 0 ? 'td-pass' : 'td-warn'}">${formatCurrency(r.netWealthRecycling)}</td>
+      <td>${formatCurrency(r.netWealthBaseline)}</td>
+    `;
+    els.yearTableBody.appendChild(tr);
+  });
+}
+
+function niceAxisBound(value, direction) {
+  // 'up'   → ceiling: at least as large as value (for y-axis max)
+  // 'down' → floor:   at most as small as value  (for y-axis min)
+  if (!isFinite(value) || value === 0) return 0;
+  const abs = Math.abs(value);
+  const exp = Math.pow(10, Math.floor(Math.log10(abs)));
+  const frac = abs / exp;
+  const NICES = [1.5, 2, 2.5, 3, 4, 5, 7.5, 10];
+  const niceCeil = (NICES.find(n => n >= frac) ?? 10) * exp;
+  if (direction === 'up')   return value >= 0 ? niceCeil : 0;       // positive → round up; negative max → cap at 0
+  else                      return value <= 0 ? -niceCeil : 0;       // negative → round away from 0; positive min → floor at 0
+}
+
+function renderLineChart(canvasId, labels, datasets, existingChart, setChart, { yMin, yMax } = {}) {
+  if (existingChart) existingChart.destroy();
+  const chart = new Chart($(canvasId).getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: datasets.map(d => ({
+        label: d.label, data: d.data, borderColor: d.color,
+        backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3,
+      })),
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 12 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } },
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: '#334155' } },
+        y: {
+          min: yMin,
+          max: yMax,
+          ticks: { color: '#94a3b8', font: { size: 11 }, callback: v => formatCurrency(v) },
+          grid: { color: '#334155' },
+        },
+      },
+    },
+  });
+  setChart(chart);
+}
+
+function hideResults() {
+  els.placeholder.style.display = '';
+  els.results.style.display = 'none';
+  els.lvrWarning.style.display = 'none';
+  els.repaymentWarning.style.display = 'none';
+}
