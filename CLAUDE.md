@@ -119,6 +119,8 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 - Dividends go to cash flow (loan repayment), not back into the portfolio
 - No "ongoing recycling" — the scheduled home loan principal repayments are NOT redrawn as new investment debt
 - Both loans decrease each year; total loan balance reduces steadily
+- `recycleAmount` is clamped to `loanBalance` inside `runScenario` — the UI should never pass more than the loan balance, but the engine protects itself
+- `runScenario()` returns an array with a `.lvrWarning` boolean property attached (not per-row): `rows.lvrWarning`
 
 ### LVR Rules
 - Flag warning (amber) if `(loanBalance + releaseAmount) / propertyValue > 0.80`
@@ -131,9 +133,9 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 - `releaseAmount` = 0 (no equity released, no LVR check)
 
 **Mode 2 — Equity Release → Stocks/ETFs**
-- `recycleAmount` = equity to release
-- `releaseAmount` = same (used for LVR check)
-- Optional refinancing costs input
+- `recycleAmount = equityRelease − refinancingCosts` (net investable amount)
+- `releaseAmount = equityRelease` (gross, for LVR check)
+- Refinancing costs input is deducted from the invested amount, not just informational
 
 **Mode 3 — Equity Release → Investment Property**
 - `recycleAmount = equityReleaseP − stampDuty`
@@ -185,16 +187,16 @@ Results Panel:
 
 ### Input behaviour
 - All dollar fields use `type="text" inputmode="numeric"` with live comma formatting (cursor-aware)
-- `parseMoney(el)` strips commas before calculation — never use `parseFloat()` on money inputs
+- `parseMoney(el)` strips commas, uses `parseFloat + Math.round`, and rejects exponential notation (e.g. `1e6`) — never use raw `parseFloat()` or `parseInt()` on money inputs
 - Monthly repayment: auto-calculated from `monthlyPayment(balance, rate, term)`; "auto" badge + ↺ reset
 - Stamp duty (property tab): auto-calculated from `STAMP_DUTY_RATES[state]`; editable with ↺ reset; state dropdown triggers recalc
 - Annual maintenance (property tab): auto-calculated at 1% of IP price (`ipPrice × 0.01`); `maintenanceCostManual` flag prevents auto-recalc on IP price change; ↺ reset restores auto; `maintPctDisplay` shows live % of purchase price
 - Franking %: `frankingPct` input (0–100); stored in localStorage; wired to `scenarioInputs.frankingPct` as decimal
-- Sensitivity: checkbox runs two extra `runScenario()` calls at ±2% investmentReturn; dashed lines added to wealth chart via `borderDash: [6, 4]`
+- Sensitivity: checkbox state persisted in localStorage; runs two extra `runScenario()` calls at ±2% investmentReturn; dashed lines added to wealth chart via `borderDash: [6, 4]`
 - Out-of-pocket note: shown in results when `rows[0].netCashFlow < 0`; displays `max(-netCashFlow, 0)` as annual salary cost
 - Investment loan rate shows: effective rate after tax + monthly I/O and P&I repayments
 - Inputs auto-save to `localStorage` key `'debt_recycling_inputs'`
-- Marginal tax rate auto-derived from income, shown to user (overridable)
+- Marginal tax rate auto-derived from income, shown to user (overridable); shows `—` when income field is blank
 - Projection period: 5–30 years slider, default 20 years
 
 ### Chart behaviour

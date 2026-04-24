@@ -105,7 +105,7 @@ test('LVR 87.5% → lvrWarning true', () => {
     ...BASE, loanBalance: 500000, propertyValue: 800000,
     releaseAmount: 200000, recycleAmount: 200000,
   });
-  assert.equal(rows[0].lvrWarning, true);
+  assert.equal(rows.lvrWarning, true);
 });
 
 // LVR guard: exactly 80% → lvrWarning false
@@ -115,7 +115,7 @@ test('LVR exactly 80% → lvrWarning false', () => {
     ...BASE, loanBalance: 400000, propertyValue: 800000,
     releaseAmount: 240000, recycleAmount: 240000,
   });
-  assert.equal(rows[0].lvrWarning, false);
+  assert.equal(rows.lvrWarning, false);
 });
 
 // LVR guard: 1 cent over 80% → lvrWarning true
@@ -125,7 +125,7 @@ test('LVR 1 cent over 80% → lvrWarning true', () => {
     ...BASE, loanBalance: 400000, propertyValue: 800000,
     releaseAmount: 240001, recycleAmount: 240001,
   });
-  assert.equal(rows[0].lvrWarning, true);
+  assert.equal(rows.lvrWarning, true);
 });
 
 // Negative: investment return below interest rate

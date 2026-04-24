@@ -30,7 +30,7 @@ function runScenario(inputs) {
     loanBalance,
     interestRate,
     monthlyRepayment,
-    recycleAmount,
+    recycleAmount: rawRecycle,
     taxRate,
     investmentReturn,
     dividendYield,
@@ -38,6 +38,9 @@ function runScenario(inputs) {
     propertyValue = 0,
     releaseAmount = 0,
   } = inputs;
+
+  // Clamp: can't recycle more than the loan balance (offset can't exceed what's owed)
+  const recycleAmount = Math.min(rawRecycle, loanBalance);
 
   const investmentRate     = inputs.investmentRate     ?? interestRate;
   const investmentLoanTerm = inputs.investmentLoanTerm ?? null;
@@ -118,10 +121,11 @@ function runScenario(inputs) {
       effectiveInvestmentRate: investmentRate * (1 - taxRate),
       netWealthRecycling: investmentValue - nonDeductible - deductible,
       netWealthBaseline: -baselineBalance,
-      lvrWarning,
     });
   }
 
+  // Attach lvrWarning to the array so callers get a single flag, not per-row noise
+  result.lvrWarning = lvrWarning;
   return result;
 }
 

@@ -88,6 +88,7 @@ const DEFAULTS = {
   investmentRate: 6.0, investmentLoanTerm: 30,
   income: 120000, taxRateOverride: '',
   investmentReturn: 7.0, dividendYield: 4.0, frankingPct: 0, years: 20,
+  sensitivityCheck: false,
   tab: 'offset', repaymentManual: false, stampDutyManual: false,
 };
 
@@ -99,7 +100,9 @@ const STAMP_DUTY_RATES = {
 // ── Money formatting ──────────────────────────────────────────────────────────
 
 function parseMoney(el) {
-  return parseInt(String(el.value).replace(/,/g, ''), 10) || 0;
+  const raw = String(el.value).replace(/,/g, '').trim();
+  if (/e/i.test(raw)) return 0;   // reject exponential notation (e.g. "1e6" → 1, not 1,000,000)
+  return Math.round(parseFloat(raw)) || 0;
 }
 
 function formatMoneyVal(n) {
@@ -303,6 +306,10 @@ function updateNetEquity() {
 // ── Derived displays ──────────────────────────────────────────────────────────
 
 function updateTaxRateDisplay() {
+  if (!String(els.income.value).replace(/,/g, '').trim()) {
+    els.taxRateDerived.textContent = 'Marginal rate: —';
+    return;
+  }
   const rate = marginalRate(parseMoney(els.income));
   els.taxRateDerived.textContent = `Marginal rate: ${(rate * 100).toFixed(1)}%`;
 }
@@ -371,6 +378,7 @@ function saveToStorage() {
     dividendYield:    els.dividendYield.value,
     frankingPct:      els.frankingPct.value,
     years:            els.years.value,
+    sensitivityCheck: els.sensitivityCheck.checked,
   }));
 }
 
@@ -406,9 +414,10 @@ function loadFromStorage() {
   els.taxRateOverride.value   = d.taxRateOverride;
   els.investmentReturn.value  = d.investmentReturn;
   els.dividendYield.value     = d.dividendYield;
-  els.frankingPct.value       = d.frankingPct ?? 0;
-  els.propertyState.value     = d.propertyState || 'NSW';
-  els.years.value             = d.years;
+  els.frankingPct.value          = d.frankingPct ?? 0;
+  els.propertyState.value        = d.propertyState || 'NSW';
+  els.years.value                = d.years;
+  els.sensitivityCheck.checked   = !!d.sensitivityCheck;
 
   els.autoRepayTag.classList.toggle('hidden', repaymentManual);
   els.autoStampTag.classList.toggle('hidden', stampDutyManual);
@@ -502,8 +511,10 @@ function onCalculate() {
   if (activeTab === 'offset') {
     recycleAmount = parseMoney(els.offsetBalance);
   } else if (activeTab === 'stocks') {
-    recycleAmount = parseMoney(els.equityRelease);
-    releaseAmount = recycleAmount;
+    const equityGross = parseMoney(els.equityRelease);
+    const refCosts    = parseMoney(els.refinancingCosts);
+    recycleAmount = Math.max(equityGross - refCosts, 0);
+    releaseAmount = equityGross;
   } else if (activeTab === 'property') {
     const equityGross = parseMoney(els.equityReleaseP);
     const stampDuty   = parseMoney(els.stampDuty);
@@ -536,7 +547,7 @@ function onCalculate() {
 
   const totalTaxSaved = rows.reduce((sum, r) => sum + r.taxSaving, 0);
 
-  if (rows.length && rows[0].lvrWarning) {
+  if (rows.lvrWarning) {
     const lvr = ((loanBalance + releaseAmount) / propertyValue * 100).toFixed(1);
     els.lvrWarning.style.display = 'block';
     els.lvrWarning.textContent = `LVR after release: ${lvr}% — exceeds 80%. Lenders may require LMI or decline.`;
