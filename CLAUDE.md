@@ -46,7 +46,7 @@ package.json            # "test": "node --test tests/*.test.js"
 
 ## Critical Architecture Rule: DOM Boundary
 
-**`app.js` is the ONLY file allowed to:**
+**`app.js`**** is the ONLY file allowed to:**
 - Read from `document` or `window`
 - Write to DOM
 - Handle user events
@@ -100,7 +100,7 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 
 **Per-year calculation order:**
 1. `deductibleInterest = deductible × investmentRate`
-2. `taxSaving = deductibleInterest × taxRate` — tax only on interest, never on principal repayment
+2. `taxSaving = (deductibleInterest + maintenanceCost) × taxRate` — both interest AND maintenance are ATO-deductible
 3. `netInterestCost = deductibleInterest × (1 − taxRate)`
 4. `grossDividends = investmentValue × dividendYield`
 5. `frankingCredit = grossDividends × frankingPct × (30 / 70)` — 0 when frankingPct = 0
@@ -108,14 +108,15 @@ Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md
 7. Portfolio grows by capital only: `investmentValue += investmentValue × (investmentReturn − dividendYield)`
    — dividends are paid out as cash, NOT reinvested in the portfolio
 8. `annualInvRepayment = _pmt(recycleAmount, investmentRate, investmentLoanTerm) × 12` (fixed P&I)
-9. `netMaintenanceCost = maintenanceCost × (1 − taxRate)` — maintenance is deductible; 0 for non-property modes
+9. `netMaintenanceCost = maintenanceCost` — gross cost; tax benefit already captured in `taxSaving` above
 10. `netCashFlow = netDividends + taxSaving − annualInvRepayment − netMaintenanceCost`
 11. `extraRepayment = max(netCashFlow, 0)` — positive cash flow → extra repayment on home loan
 12. Investment loan principal reduces: `deductible -= max(annualInvRepayment − deductibleInterest, 0)`
 13. Home loan reduces: `nonDeductible -= scheduledPrincipal + extraRepayment`
 
 **Key invariants:**
-- Tax saving is ONLY on the interest portion — never on principal repayment
+- Tax saving covers both deductible interest AND maintenance cost (both are ATO-deductible for investment properties)
+- Net effect on cash flow is still `maintenanceCost × (1 − taxRate)` — tax saving offsets part of the cost
 - Dividends go to cash flow (loan repayment), not back into the portfolio
 - No "ongoing recycling" — the scheduled home loan principal repayments are NOT redrawn as new investment debt
 - Both loans decrease each year; total loan balance reduces steadily
@@ -248,10 +249,10 @@ npx http-server www -p 8080 -c-1
 Deployed at `kashvector.com/debt-recycling/` via Cloudflare Pages.
 
 **To redeploy after changes:**
-1. Copy `www/` → `C:\Projects\StockAnalysis\www\debt-recycling\`
+1. Copy `www/` → `C:\Projects\StockAnalysis\www\debt-recycling`
 2. Commit and push `C:\Projects\StockAnalysis` — Cloudflare Pages auto-deploys
 
-**Assets at `C:\Projects\StockAnalysis\www\`:**
+**Assets at \`C:\\Projects\\StockAnalysis\\www\`:**
 - `Debt-recycling.png` — tool icon (used in landing page tile and app header)
 - `logo.svg` — KashVector logo (referenced as `../logo.svg` from the app)
 

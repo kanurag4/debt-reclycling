@@ -68,8 +68,9 @@ function runScenario(inputs) {
   for (let y = 1; y <= years; y++) {
     // Investment loan: interest on current (decreasing) balance
     const deductibleInterest = deductible * investmentRate;
-    const taxSaving          = deductibleInterest * taxRate;
-    const netInterestCost    = deductibleInterest - taxSaving;
+    // Tax saving covers both deductible interest AND maintenance (both are ATO-deductible)
+    const taxSaving          = (deductibleInterest + maintenanceCost) * taxRate;
+    const netInterestCost    = deductibleInterest - deductibleInterest * taxRate;
 
     // Portfolio grows by capital appreciation only.
     // Dividends are paid out as cash and flow toward investment loan repayment.
@@ -80,11 +81,11 @@ function runScenario(inputs) {
     investmentValue      = investmentValue + capitalGrowth;
 
     // Net cash from recycling this year:
-    //   after-tax dividends + tax refund − investment loan repayment − net maintenance cost
-    // Maintenance is deductible: net cost = maintenanceCost × (1 − taxRate)
+    //   after-tax dividends + tax refund (interest + maintenance) − investment loan repayment − gross maintenance
+    // taxSaving already includes the maintenance deduction benefit, so subtract gross maintenance here.
     // IO fallback: annualInvRepayment = deductibleInterest → simplifies to netDividends − netInterestCost
     const invRepayment       = annualInvRepayment ?? deductibleInterest;
-    const netMaintenanceCost = maintenanceCost * (1 - taxRate);
+    const netMaintenanceCost = maintenanceCost;
     const netCashFlow        = netDividends + taxSaving - invRepayment - netMaintenanceCost;
     const extraRepayment = Math.max(netCashFlow, 0);
 
