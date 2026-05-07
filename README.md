@@ -14,8 +14,8 @@ This calculator helps you decide whether the math works for your situation by sh
 - **Net wealth comparison** — recycling vs. doing nothing, projected over 5–30 years
 - **Out-of-pocket cost** — how much salary you need to contribute if the strategy is negatively geared
 - **Loan payoff trajectory** — how quickly your non-deductible debt shrinks
-- **Year-by-year table** — full breakdown of every number, with a plain-English column guide for each field
-- **Chart explainers** — one-line descriptions below each chart to help first-time users understand what they're seeing
+- **Year-by-year table** — full breakdown of every number, with a plain-English column guide
+- **Sensitivity bands** — optional ±2% wealth chart to show how return assumptions affect the outcome
 
 ## Three strategies
 
@@ -31,10 +31,20 @@ This calculator helps you decide whether the math works for your situation by sh
 - Amount to recycle (offset balance or equity released)
 - Your annual income (derives your marginal tax rate automatically)
 - Investment return and dividend yield assumptions
-- Franking percentage (e.g. VAS ETF is ~70–100% franked — boosts your after-tax dividends)
+- Franking percentage (e.g. VAS ETF is ~70–100% franked — boosts after-tax dividends)
 - State selector for stamp duty estimate (property tab)
 - Annual maintenance cost estimate (property tab) — auto-set to 1% of purchase price, editable
 - ±2% sensitivity bands on the wealth chart (checkbox)
+
+## Australian tax brackets (2024–25)
+
+| Income | Marginal Rate (inc. Medicare) |
+|---|---|
+| $0 – $18,200 | 0% |
+| $18,201 – $45,000 | 21% |
+| $45,001 – $120,000 | 34.5% |
+| $120,001 – $180,000 | 39% |
+| $180,001+ | 47% |
 
 ## Running locally
 
@@ -52,6 +62,25 @@ npm test
 ```
 
 Uses Node's built-in test runner (Node 18+). 71 tests covering all pure calculation functions.
+
+## Project structure
+
+```
+www/
+├── index.html          # Single-page UI
+├── style.css           # KashVector dark theme
+├── utils.js            # Pure helpers: fmt(), safe(), formatCurrency()
+├── calc/
+│   ├── amortization.js # loanSchedule(), monthlyPayment()
+│   ├── tax.js          # Australian tax brackets, marginalRate()
+│   └── recycling.js    # runScenario() — year-by-year projection engine
+└── app.js              # Only file that touches the DOM
+tests/
+├── tax.test.js
+├── amortization.test.js
+├── recycling.test.js
+└── utils.test.js
+```
 
 ## Tech stack
 
