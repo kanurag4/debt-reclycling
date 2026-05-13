@@ -4,18 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Debt Recycling Calculator — KashVector</title>
+  <script src="/kv-theme.js"></script>
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" type="image/png" href="../Debt-recycling.png">
+  <link rel="icon" href="../debt-recycling-icon.svg">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
 <header class="app-header">
-  <a href="/" class="home-logo" aria-label="KashVector home">
+  <a href="../" class="home-logo" aria-label="All KashVector tools">
     <img src="../logo.svg" alt="KashVector" width="32" height="32">
+    <span class="home-logo-label">← All tools</span>
   </a>
-  <h1><img src="../Debt-recycling.png" alt="" width="32" height="32" style="vertical-align:middle;margin-right:8px;border-radius:6px"> Debt Recycling Calculator</h1>
-  <p>Model whether converting your home loan to tax-deductible investment debt is right for you.</p>
+  <div class="app-header-center">
+    <h1><img src="../debt-recycling-icon.svg" alt="" width="32" height="32" style="vertical-align:middle;margin-right:8px;border-radius:6px"> Debt Recycling Calculator</h1>
+    <p>Model whether converting your home loan to tax-deductible investment debt is right for you.</p>
+    <span class="budget-badge">✓ 2026–27 Federal Budget Ready</span>
+  </div>
+  <button class="theme-toggle" onclick="window.kvTheme.toggle()" aria-label="Toggle theme"></button>
 </header>
 
 <main>
@@ -95,6 +101,14 @@
         <div class="field">
           <label>Purchase Price ($)</label>
           <input type="text" inputmode="numeric" id="ipPrice" class="money-input" placeholder="600,000">
+        </div>
+        <div class="field">
+          <label>Property Type <span class="tip" data-tip="Negative gearing rules change from 1 July 2027. Established properties purchased after 12 May 2026 can no longer offset rental losses against salary income. New builds and grandfathered properties are unaffected.">?</span></label>
+          <select id="propertyType">
+            <option value="existing">Existing property (owned before 12 May 2026)</option>
+            <option value="new-build">New build (purchased after 12 May 2026)</option>
+            <option value="established-new">Established property (purchased after 12 May 2026)</option>
+          </select>
         </div>
         <div class="field">
           <label>Rental Yield (% p.a.) <span class="tip" data-tip="Gross rental income as a percentage of purchase price.">?</span></label>
@@ -188,6 +202,17 @@
             <label>Franking (% franked) <span class="tip" data-tip="Percentage of dividends that carry franking credits (pre-paid 30% corporate tax). E.g. VAS is typically 70–100% franked. Set to 0 if you are unsure.">?</span></label>
             <input type="number" id="frankingPct" min="0" max="100" step="5" value="0" placeholder="0">
           </div>
+          <div class="field">
+            <label>CGT Rules <span class="tip" data-tip="From 1 July 2027, assets acquired after 12 May 2026 lose the 50% CGT discount. Gains are taxed at your marginal rate with a 30% minimum floor. Select pre-budget if modeling existing investments acquired before that date.">?</span></label>
+            <select id="cgtRules">
+              <option value="post-budget">Post-budget (acquired after 12 May 2026)</option>
+              <option value="pre-budget">Pre-budget (acquired before 12 May 2026)</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" id="inflationRateField">
+          <label>Assumed Inflation (% p.a.) <span class="tip" data-tip="Used to index the cost base of investments for post-budget CGT calculations. Inflation indexation reduces your taxable capital gain. Applies to assets acquired after 12 May 2026 only.">?</span></label>
+          <input type="number" id="inflationRate" min="0" max="10" step="0.1" value="2.5">
         </div>
         <div class="field">
           <label>Projection Period: <span id="yearsLabel">20 years</span></label>
@@ -240,6 +265,16 @@
             <div class="card-value pass" id="cardWealthGain">—</div>
             <div class="card-sub" id="cardWealthSub">over projection</div>
           </div>
+          <div class="summary-card">
+            <div class="card-label">Wealth Gain After CGT</div>
+            <div class="card-value pass" id="cardWealthGainCGT">—</div>
+            <div class="card-sub" id="cardWealthCGTSub">if you exited today</div>
+          </div>
+          <div class="summary-card pre-budget-card">
+            <div class="card-label">Without Budget Changes</div>
+            <div class="card-value pass" id="cardWealthPreBudget">—</div>
+            <div class="card-sub" id="cardWealthPreBudgetSub">under pre-2026 rules</div>
+          </div>
         </div>
 
         <div class="verdict pass" id="verdict"></div>
@@ -256,6 +291,7 @@
           <h3>Net Wealth Over Time</h3>
           <p class="chart-explainer">Net wealth = investment portfolio value minus total loan balance. A widening gap between the recycling and baseline lines means debt recycling is building more wealth than doing nothing.</p>
           <canvas id="wealthChart"></canvas>
+          <p class="chart-cgt-note">Net Wealth shown pre-CGT disposal. See <strong>Net Wealth After CGT</strong> column in the year table for exit-adjusted values.</p>
         </div>
 
         <button class="btn-pdf" id="downloadPdfBtn">Download PDF</button>
@@ -273,6 +309,7 @@
               <div><dt>Tax Saving</dt><dd>Reduction in your tax bill from claiming investment loan interest as a deduction.</dd></div>
               <div><dt>Net Cash Flow</dt><dd>Dividends + tax saving minus investment loan repayment. Positive = surplus cash applied to home loan; negative = out-of-pocket shortfall.</dd></div>
               <div><dt>Net Wealth</dt><dd>Investment value minus total loan balance (debt recycling scenario).</dd></div>
+              <div><dt>Net Wealth After CGT</dt><dd>Net Wealth minus the estimated CGT liability if you sold all investments this year. Uses 2026 budget CGT rules (or pre-budget if selected).</dd></div>
               <div><dt>Baseline Wealth</dt><dd>Net position without debt recycling — compare to Net Wealth to see the benefit.</dd></div>
             </dl>
           </div>
@@ -289,6 +326,7 @@
                   <th>Tax Saving</th>
                   <th>Net Cash Flow</th>
                   <th>Net Wealth</th>
+                  <th>Net Wealth After CGT</th>
                   <th>Baseline Wealth</th>
                 </tr>
               </thead>
@@ -300,6 +338,105 @@
     </section>
   </div>
 </main>
+
+<section class="tool-info">
+  <div class="tool-about">
+    <h2>About this tool</h2>
+    <p>Model the Australian debt recycling strategy — converting non-deductible home loan debt into tax-deductible investment debt. As you pay down your mortgage, you redraw an equal amount to invest, making that interest tax-deductible. Over time, your after-tax returns compound faster than a standard mortgage.</p>
+    <p>Suited to Australian homeowners with stable income, an investment mindset, and a long time horizon. Not suitable for those close to retirement, tight cash flow, or a low risk tolerance.</p>
+    <p>Updated for the <strong style="color:var(--kv-text)">2026–27 Federal Budget</strong>: reflects the new tax brackets (effective 1 July 2026), the negative gearing restriction on established investment properties (1 July 2027), and the replacement of the 50% CGT discount with inflation indexation (1 July 2027).</p>
+  </div>
+  <div class="tool-faq">
+    <h2>Frequently asked questions</h2>
+
+    <details class="faq-item">
+      <summary>What is debt recycling?</summary>
+      <p>Debt recycling replaces non-deductible home loan debt with tax-deductible investment debt. The ATO allows you to deduct interest on money borrowed to invest in income-producing assets. By recycling debt, you gradually convert your non-deductible mortgage into a deductible investment loan, reducing your tax bill each year.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>Is debt recycling legal in Australia?</summary>
+      <p>Yes — it is a legitimate tax strategy, but it must be structured correctly. The ATO requires a clear, direct link between the borrowed funds and the income-producing investment. Always consult a licensed financial adviser or tax accountant before implementing.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>What are the risks?</summary>
+      <p>Your investments can fall in value while your debt remains fixed. A sharp market downturn can significantly worsen your net position. Debt recycling amplifies both gains and losses — it is not appropriate for everyone.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>How is the tax saving calculated?</summary>
+      <p>The calculator multiplies your marginal tax rate by the deductible expenses each year. For shares and ETFs this is just the investment loan interest. For investment properties it also includes annual maintenance costs, since both interest and maintenance are ATO-deductible against rental income. This represents the reduction in your tax bill from claiming those deductions.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>What changed in the 2026 Federal Budget? <span class="faq-tag">2026 Budget</span></summary>
+      <p>The May 2026 Federal Budget introduced three changes affecting debt recycling, effective from 1 July 2026 or 1 July 2027:</p>
+      <ul>
+        <li><strong>Tax rate cut</strong> — the $18,201–$45,000 bracket drops from 19% to 15% base (17% including Medicare). Effective 1 July 2026. Reduces the value of deductions slightly for lower-income earners, but lowers your overall tax bill.</li>
+        <li><strong>Negative gearing restriction</strong> — established investment properties purchased after 12 May 2026 can no longer use rental losses to offset salary income. Effective 1 July 2027. New builds and properties purchased before 12 May 2026 are grandfathered.</li>
+        <li><strong>CGT discount removed</strong> — the 50% CGT discount is replaced by inflation indexation plus a 30% minimum tax rate for assets acquired after 12 May 2026. Effective 1 July 2027. You now pay tax only on real (inflation-adjusted) gains, at your marginal rate with a 30% floor.</li>
+      </ul>
+    </details>
+
+    <details class="faq-item">
+      <summary>What are the new 2026–27 income tax brackets? <span class="faq-tag">2026 Budget</span></summary>
+      <p>The updated rates (including 2% Medicare levy) from 1 July 2026:</p>
+      <ul>
+        <li>$0 – $18,200 &nbsp;→&nbsp; 0%</li>
+        <li>$18,201 – $45,000 &nbsp;→&nbsp; 17% (down from 21%)</li>
+        <li>$45,001 – $135,000 &nbsp;→&nbsp; 32% (down from 34.5%, threshold raised from $120k)</li>
+        <li>$135,001 – $190,000 &nbsp;→&nbsp; 39% (threshold raised from $180k)</li>
+        <li>$190,001+ &nbsp;→&nbsp; 47%</li>
+      </ul>
+      <p>This tool uses these 2026–27 rates. Your marginal rate is shown next to the income field and drives all tax saving calculations.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>What is the negative gearing restriction and who does it affect? <span class="faq-tag">2026 Budget</span></summary>
+      <p>From 1 July 2027, investors who purchase an <em>established</em> investment property after 12 May 2026 can no longer offset rental losses against their salary or wage income. Previously, if your interest and expenses exceeded your rental income, the shortfall reduced your taxable salary — a significant tax benefit when negatively geared.</p>
+      <p>Under the new rules, excess losses are quarantined and can only be applied against future rental income or capital gains from the same property. The following are <strong>not</strong> affected:</p>
+      <ul>
+        <li>Properties purchased before 12 May 2026 (grandfathered)</li>
+        <li>New build properties purchased after 12 May 2026</li>
+      </ul>
+      <p>Select your property type in the calculator to model the correct scenario for your situation.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>If negative gearing is restricted, how do I still save tax? <span class="faq-tag">2026 Budget</span></summary>
+      <p>The restriction does not eliminate tax deductions — it caps them at your rental income. Your expenses (interest + maintenance) are still deductible, but only up to the amount of rental income earned. This effectively makes your rental income tax-free, which is still a real saving.</p>
+      <p>Example: rental income $5,000, total deductible expenses $14,400 at a 32% tax rate:</p>
+      <ul>
+        <li><strong>Old rules:</strong> deduct full $14,400 → tax saving of $4,608</li>
+        <li><strong>New rules (restricted):</strong> deduct $5,000 (capped at rental income) → tax saving of $1,600</li>
+        <li>The $9,400 excess loss is quarantined — not lost forever, but cannot reduce your salary tax this year</li>
+      </ul>
+      <p>The calculator shows both scenarios so you can compare the impact.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>How did CGT change under the 2026 budget? <span class="faq-tag">2026 Budget</span></summary>
+      <p>Before the budget, investors selling assets held longer than 12 months received a 50% CGT discount — effectively paying tax at half their marginal rate on capital gains.</p>
+      <p>For assets acquired after 12 May 2026, the 50% discount is replaced by <strong>inflation indexation</strong>: the original cost base is adjusted upward each year by the assumed inflation rate (default 2.5%). You then pay tax only on the gain above that indexed cost base, at your marginal rate with a minimum of 30%.</p>
+      <p>This means you are taxed only on <em>real</em> gains, not inflation-driven paper gains. For assets with strong real growth well above inflation, the old 50% discount was better. For assets with modest real growth close to inflation, the new indexed approach can produce a lower CGT bill.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>Why does "Without Budget Changes" sometimes show lower wealth than current rules? <span class="faq-tag">2026 Budget</span></summary>
+      <p>This is counterintuitive but mathematically correct in certain scenarios. The "Without Budget Changes" card uses the old 50% CGT discount, which gives an effective tax rate of 16% on the full nominal gain (at 32% marginal rate). The new rules apply 32% to the much smaller <em>inflation-adjusted</em> gain.</p>
+      <p>When capital growth is only slightly above inflation — for example, a share portfolio growing at 3% p.a. with 2.5% inflation — the indexed gain after 20 years is very small. The new rules produce a lower CGT bill than the old 50% discount, making the post-budget "Wealth Gain After CGT" higher.</p>
+      <p>You will see the old rules produce a clearly higher number when your capital growth assumption significantly exceeds inflation — for example, an investment property growing at 6% with 2.5% inflation.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>Why is net wealth negative in the year table?</summary>
+      <p>Net wealth in this tool is calculated as: investment value minus all outstanding loan balances (both home loan and investment loan). Early in the projection, the debt is large relative to your investment portfolio, so the number is negative for both the recycling scenario and the baseline.</p>
+      <p>This does not mean you are insolvent — it simply does not include your home's value or other assets. What matters is the <em>difference</em> between the two columns. If the recycling net wealth is less negative (or more positive) than the baseline, debt recycling is building more wealth. The "Wealth Gain" card and verdict banner reflect this difference.</p>
+    </details>
+
+  </div>
+</section>
 
 <footer style="text-align:center;padding:24px;color:var(--kv-muted);font-size:0.8rem;">
   KashVector — for educational purposes only. Not financial advice.

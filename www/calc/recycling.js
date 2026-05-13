@@ -2,20 +2,24 @@
 // All inputs are numbers; returns array of annual snapshots.
 //
 // inputs:
-//   loanBalance         - current home loan balance
-//   interestRate        - home loan annual rate (non-deductible portion, e.g. 0.06)
-//   investmentRate      - investment loan annual rate (deductible; defaults to interestRate)
-//   investmentLoanTerm  - investment loan term in years for P&I amortisation
-//   monthlyRepayment    - scheduled monthly repayment on home loan
-//   recycleAmount       - amount being recycled (offset balance or equity released)
-//   taxRate             - marginal tax rate (e.g. 0.345)
-//   investmentReturn    - total expected annual return (e.g. 0.07)
-//   dividendYield       - portion paid as dividends / rental yield (e.g. 0.04)
-//   frankingPct         - fraction of dividends that are franked (0–1, default 0)
-//   maintenanceCost     - annual property maintenance cost in $ (deductible; default 0)
-//   years               - projection length
-//   propertyValue       - used for LVR check (mode 2 & 3)
-//   releaseAmount       - equity being released (mode 2 & 3; 0 for offset mode)
+//   loanBalance               - current home loan balance
+//   interestRate              - home loan annual rate (non-deductible portion, e.g. 0.06)
+//   investmentRate            - investment loan annual rate (deductible; defaults to interestRate)
+//   investmentLoanTerm        - investment loan term in years for P&I amortisation
+//   monthlyRepayment          - scheduled monthly repayment on home loan
+//   recycleAmount             - amount being recycled (offset balance or equity released)
+//   taxRate                   - marginal tax rate (e.g. 0.32)
+//   investmentReturn          - total expected annual return (e.g. 0.07)
+//   dividendYield             - portion paid as dividends / rental yield (e.g. 0.04)
+//   frankingPct               - fraction of dividends that are franked (0–1, default 0)
+//   maintenanceCost           - annual property maintenance cost in $ (deductible; default 0)
+//   years                     - projection length
+//   propertyValue             - used for LVR check (mode 2 & 3)
+//   releaseAmount             - equity being released (mode 2 & 3; 0 for offset mode)
+//   negativeGearingRestricted - when true, cap tax saving at rental income (no salary offset)
+//   cgtRules                  - 'pre-budget' (50% discount) | 'post-budget' (30% min, default)
+//   ipPrice                   - investment property purchase price; triggers full-value CGT calc
+//   inflationRate             - annual inflation for post-budget CGT indexation (default 0.025)
 
 function _pmt(principal, annualRate, termYears) {
   if (principal <= 0 || termYears <= 0) return 0;
@@ -42,10 +46,14 @@ function runScenario(inputs) {
   // Clamp: can't recycle more than the loan balance (offset can't exceed what's owed)
   const recycleAmount = Math.min(rawRecycle, loanBalance);
 
-  const investmentRate     = inputs.investmentRate     ?? interestRate;
-  const investmentLoanTerm = inputs.investmentLoanTerm ?? null;
-  const frankingPct        = inputs.frankingPct        ?? 0;  // 0–1 fraction
-  const maintenanceCost    = inputs.maintenanceCost    ?? 0;  // annual $, deductible
+  const investmentRate              = inputs.investmentRate              ?? interestRate;
+  const investmentLoanTerm          = inputs.investmentLoanTerm          ?? null;
+  const frankingPct                 = inputs.frankingPct                 ?? 0;    // 0–1 fraction
+  const maintenanceCost             = inputs.maintenanceCost             ?? 0;    // annual $, deductible
+  const negativeGearingRestricted   = inputs.negativeGearingRestricted   ?? false;
+  const cgtRules                    = inputs.cgtRules                    ?? 'post-budget';
+  const ipPrice                     = inputs.ipPrice                     ?? 0;    // property purchase price
+  const inflationRate               = inputs.inflationRate               ?? 0.025; // for post-budget CGT indexation
 
   // Fixed annual P&I repayment on investment loan.
   // null investmentLoanTerm → interest-only (IO): no principal reduction.
@@ -57,10 +65,15 @@ function runScenario(inputs) {
     ? (loanBalance / propertyValue) + (releaseAmount / propertyValue) > 0.80
     : false;
 
-  let nonDeductible  = loanBalance - recycleAmount;
-  let deductible     = recycleAmount;
+  let nonDeductible   = loanBalance - recycleAmount;
+  let deductible      = recycleAmount;
   let investmentValue = recycleAmount;
   let baselineBalance = loanBalance;
+
+  // CGT tracking: for property use full purchase price; for shares use recycleAmount
+  const cgtCostBase       = ipPrice > 0 ? ipPrice : recycleAmount;
+  const ipGrowthRate      = investmentReturn - dividendYield;  // capital-only growth rate
+  let fullPropertyValue   = ipPrice > 0 ? ipPrice : 0;
 
   const annualRepayment = monthlyRepayment * 12;
   const result = [];
@@ -68,9 +81,6 @@ function runScenario(inputs) {
   for (let y = 1; y <= years; y++) {
     // Investment loan: interest on current (decreasing) balance
     const deductibleInterest = deductible * investmentRate;
-    // Tax saving covers both deductible interest AND maintenance (both are ATO-deductible)
-    const taxSaving          = (deductibleInterest + maintenanceCost) * taxRate;
-    const netInterestCost    = deductibleInterest - deductibleInterest * taxRate;
 
     // Portfolio grows by capital appreciation only.
     // Dividends are paid out as cash and flow toward investment loan repayment.
@@ -80,6 +90,14 @@ function runScenario(inputs) {
     const capitalGrowth  = investmentValue * (investmentReturn - dividendYield);
     investmentValue      = investmentValue + capitalGrowth;
 
+    // Tax saving covers deductible interest + maintenance.
+    // When negativeGearingRestricted, cap at rental income so no losses offset salary.
+    const effectiveDeductible = negativeGearingRestricted
+      ? Math.min(deductibleInterest + maintenanceCost, grossDividends)
+      : (deductibleInterest + maintenanceCost);
+    const taxSaving      = effectiveDeductible * taxRate;
+    const netInterestCost = deductibleInterest - deductibleInterest * taxRate;
+
     // Net cash from recycling this year:
     //   after-tax dividends + tax refund (interest + maintenance) − investment loan repayment − gross maintenance
     // taxSaving already includes the maintenance deduction benefit, so subtract gross maintenance here.
@@ -87,7 +105,7 @@ function runScenario(inputs) {
     const invRepayment       = annualInvRepayment ?? deductibleInterest;
     const netMaintenanceCost = maintenanceCost;
     const netCashFlow        = netDividends + taxSaving - invRepayment - netMaintenanceCost;
-    const extraRepayment = Math.max(netCashFlow, 0);
+    const extraRepayment     = Math.max(netCashFlow, 0);
 
     // Reduce investment loan by principal portion of P&I repayment (P&I mode only)
     if (annualInvRepayment !== null) {
@@ -105,6 +123,27 @@ function runScenario(inputs) {
     const baselinePrincipal = Math.max(annualRepayment - baselineInterest, 0);
     baselineBalance = Math.max(baselineBalance - baselinePrincipal, 0);
 
+    // CGT liability if the investor exited in this year
+    if (ipPrice > 0) {
+      fullPropertyValue *= (1 + ipGrowthRate);
+    }
+    const cgtBase = ipPrice > 0 ? fullPropertyValue : investmentValue;
+
+    let cgtLiability;
+    if (cgtRules === 'pre-budget') {
+      // 50% CGT discount on nominal gain
+      const nominalGain = Math.max(cgtBase - cgtCostBase, 0);
+      cgtLiability = nominalGain * 0.5 * taxRate;
+    } else {
+      // Post-budget: inflation-indexation reduces taxable gain; 30% minimum tax applies
+      const indexedCostBase = cgtCostBase * Math.pow(1 + inflationRate, y);
+      const indexedGain     = Math.max(cgtBase - indexedCostBase, 0);
+      cgtLiability = indexedGain * Math.max(0.30, taxRate);
+    }
+
+    const netWealthRecycling = investmentValue - nonDeductible - deductible;
+    const netWealthAfterCGT  = netWealthRecycling - cgtLiability;
+
     result.push({
       year: y,
       nonDeductibleBalance: nonDeductible,
@@ -120,8 +159,10 @@ function runScenario(inputs) {
       extraRepayment,
       investmentLoanMonthlyRepayment: deductibleInterest / 12,
       effectiveInvestmentRate: investmentRate * (1 - taxRate),
-      netWealthRecycling: investmentValue - nonDeductible - deductible,
+      netWealthRecycling,
       netWealthBaseline: -baselineBalance,
+      cgtLiability,
+      netWealthAfterCGT,
     });
   }
 

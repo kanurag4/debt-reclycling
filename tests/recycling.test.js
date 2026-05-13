@@ -183,3 +183,122 @@ test('maintenanceCost reduces netCashFlow by maintenanceCost × (1 − taxRate)'
   const expectedReduction = cost * (1 - BASE.taxRate);  // deductible expense
   near(rowsNo[0].netCashFlow - rowsWith[0].netCashFlow, expectedReduction, 1);
 });
+
+// ── Negative gearing restriction ────────────────────────────────────────────
+// BASE is negatively geared: deductibleInterest ($6k) > grossDividends ($4k)
+
+test('omitting negativeGearingRestricted → same taxSaving as false (backward compat)', () => {
+  const rowsDefault    = runScenario(BASE);
+  const rowsUnrestricted = runScenario({ ...BASE, negativeGearingRestricted: false });
+  near(rowsDefault[0].taxSaving, rowsUnrestricted[0].taxSaving, 0.01);
+});
+
+test('negativeGearingRestricted=false → taxSaving = (interest + maintenance) × taxRate', () => {
+  const rows = runScenario({ ...BASE, negativeGearingRestricted: false });
+  // 100k × 6% = $6,000 interest; no maintenance; taxSaving = 6000 × 0.345 = 2070
+  near(rows[0].taxSaving, 2070, 1);
+});
+
+test('negativeGearingRestricted=true, negatively geared → taxSaving capped at grossDividends × taxRate', () => {
+  const rows = runScenario({ ...BASE, negativeGearingRestricted: true });
+  // grossDividends = 100k × 4% = $4,000; capped taxSaving = 4000 × 0.345 = 1380
+  near(rows[0].taxSaving, 1380, 1);
+});
+
+test('negativeGearingRestricted=true, negatively geared → netCashFlow lower than unrestricted', () => {
+  const rowsUnrestricted = runScenario({ ...BASE, negativeGearingRestricted: false });
+  const rowsRestricted   = runScenario({ ...BASE, negativeGearingRestricted: true });
+  assert.ok(rowsRestricted[0].netCashFlow < rowsUnrestricted[0].netCashFlow,
+    'restricted cashflow should be lower than unrestricted');
+});
+
+test('negativeGearingRestricted=true, positively geared → taxSaving unchanged vs unrestricted', () => {
+  // Make positively geared: dividendYield (7%) > investmentRate (4%)
+  const positiveBase = { ...BASE, investmentRate: 0.04, dividendYield: 0.07, investmentReturn: 0.10 };
+  const rowsUnrestricted = runScenario({ ...positiveBase, negativeGearingRestricted: false });
+  const rowsRestricted   = runScenario({ ...positiveBase, negativeGearingRestricted: true });
+  near(rowsRestricted[0].taxSaving, rowsUnrestricted[0].taxSaving, 0.01);
+});
+
+// ── CGT calculations ─────────────────────────────────────────────────────────
+
+test('cgtLiability=0 when recycleAmount=0 (no investment gain)', () => {
+  const rows = runScenario({ ...BASE, recycleAmount: 0 });
+  rows.forEach(r => assert.equal(r.cgtLiability, 0));
+});
+
+test('post-budget CGT on shares: applies 30% min to inflation-indexed gain', () => {
+  // With inflationRate=0 to isolate: indexed gain = nominal gain = 3k; cgtLiability ≈ 3000×0.345
+  const rows = runScenario({ ...BASE, cgtRules: 'post-budget', inflationRate: 0 });
+  near(rows[0].cgtLiability, 3000 * 0.345, 5);
+});
+
+test('post-budget CGT with 2.5% inflation: indexed gain < nominal gain', () => {
+  // indexedCostBase yr1 = 100k × 1.025 = 102,500; investmentValue ≈ 103k
+  // indexedGain ≈ 500; cgtLiability ≈ 500 × 0.345
+  const rows = runScenario({ ...BASE, cgtRules: 'post-budget', inflationRate: 0.025 });
+  near(rows[0].cgtLiability, 500 * 0.345, 5);
+});
+
+test('post-budget CGT: higher inflation → lower CGT liability', () => {
+  const rowsLowInf  = runScenario({ ...BASE, cgtRules: 'post-budget', inflationRate: 0 });
+  const rowsHighInf = runScenario({ ...BASE, cgtRules: 'post-budget', inflationRate: 0.05 });
+  assert.ok(rowsHighInf[0].cgtLiability < rowsLowInf[0].cgtLiability,
+    'higher inflation should reduce CGT via indexation');
+});
+
+test('pre-budget CGT on shares: 50% discount on nominal gain', () => {
+  const rows = runScenario({ ...BASE, cgtRules: 'pre-budget' });
+  near(rows[0].cgtLiability, 3000 * 0.5 * 0.345, 5);
+});
+
+test('with inflationRate=0: pre-budget CGT < post-budget CGT', () => {
+  // Without indexation benefit, post-budget (full gain × 0.345) > pre-budget (half gain × 0.345)
+  const rowsPre  = runScenario({ ...BASE, cgtRules: 'pre-budget',  inflationRate: 0 });
+  const rowsPost = runScenario({ ...BASE, cgtRules: 'post-budget', inflationRate: 0 });
+  assert.ok(rowsPre[0].cgtLiability < rowsPost[0].cgtLiability);
+});
+
+test('omitting inflationRate defaults to 2.5%', () => {
+  const rowsDefault   = runScenario({ ...BASE, cgtRules: 'post-budget' });
+  const rowsExplicit  = runScenario({ ...BASE, cgtRules: 'post-budget', inflationRate: 0.025 });
+  near(rowsDefault[0].cgtLiability, rowsExplicit[0].cgtLiability, 0.01);
+});
+
+test('netWealthAfterCGT = netWealthRecycling − cgtLiability', () => {
+  const rows = runScenario({ ...BASE, cgtRules: 'post-budget' });
+  rows.forEach(r => {
+    near(r.netWealthAfterCGT, r.netWealthRecycling - r.cgtLiability, 0.01);
+  });
+});
+
+test('omitting cgtRules defaults to post-budget behaviour', () => {
+  const rowsDefault  = runScenario(BASE);
+  const rowsPostBudget = runScenario({ ...BASE, cgtRules: 'post-budget' });
+  near(rowsDefault[0].cgtLiability, rowsPostBudget[0].cgtLiability, 0.01);
+});
+
+test('property tab: CGT based on full ipPrice growth, not equity-only investmentValue', () => {
+  // inflationRate=0 to isolate the full-value mechanism
+  // ipPrice=$600k growing at 5%/yr; after yr1: fullPropertyValue=630k; nominalGain=30k
+  // cgtLiability = 30k × 0.345 ≈ 10350
+  // Shares-only CGT would be: 100k×0.03=3k gain → 3k×0.345≈1035 (much smaller)
+  const rows = runScenario({
+    ...BASE, ipPrice: 600000,
+    investmentReturn: 0.09, dividendYield: 0.04,  // ipGrowthRate = 0.05
+    cgtRules: 'post-budget', inflationRate: 0,
+  });
+  near(rows[0].cgtLiability, 30000 * 0.345, 50);
+  assert.ok(rows[0].cgtLiability > 1035 * 5, 'property CGT should be much larger than equity-only CGT');
+});
+
+test('property tab CGT with 2.5% inflation: indexed gain reduces liability', () => {
+  // indexedCostBase yr1 = 600k × 1.025 = 615k; fullPropertyValue = 630k; indexedGain = 15k
+  // cgtLiability = 15k × 0.345 ≈ 5175
+  const rows = runScenario({
+    ...BASE, ipPrice: 600000,
+    investmentReturn: 0.09, dividendYield: 0.04,
+    cgtRules: 'post-budget', inflationRate: 0.025,
+  });
+  near(rows[0].cgtLiability, 15000 * 0.345, 50);
+});

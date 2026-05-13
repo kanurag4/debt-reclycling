@@ -50,6 +50,10 @@ const els = {
   sensitivityCheck:   $('sensitivityCheck'),
   // property
   propertyState:      $('propertyState'),
+  propertyType:       $('propertyType'),
+  // investment assumptions (budget/CGT)
+  cgtRules:           $('cgtRules'),
+  inflationRate:      $('inflationRate'),
   // warnings
   lvrWarning:         $('lvr-warning'),
   repaymentWarning:   $('repayment-warning'),
@@ -65,7 +69,11 @@ const els = {
   cardTotalTaxSub:    $('cardTotalTaxSub'),
   cardWealthGain:     $('cardWealthGain'),
   cardWealthSub:      $('cardWealthSub'),
-  verdict:            $('verdict'),
+  cardWealthGainCGT:      $('cardWealthGainCGT'),
+  cardWealthCGTSub:       $('cardWealthCGTSub'),
+  cardWealthPreBudget:    $('cardWealthPreBudget'),
+  cardWealthPreBudgetSub: $('cardWealthPreBudgetSub'),
+  verdict:                $('verdict'),
   outOfPocketNote:    $('outOfPocketNote'),
   yearTableBody:      $('yearTableBody'),
 };
@@ -84,7 +92,7 @@ const DEFAULTS = {
   equityRelease: 100000, refinancingCosts: 0,
   equityReleaseP: 100000, ipPrice: 600000, rentalYield: 4.0, ipGrowth: 5.0, stampDuty: 0,
   maintenanceCost: 0, maintenanceCostManual: false,
-  propertyState: 'NSW',
+  propertyState: 'NSW', propertyType: 'existing', cgtRules: 'post-budget', inflationRate: 2.5,
   investmentRate: 6.0, investmentLoanTerm: 30,
   income: 120000, taxRateOverride: '',
   investmentReturn: 7.0, dividendYield: 4.0, frankingPct: 0, years: 20,
@@ -379,6 +387,9 @@ function saveToStorage() {
     frankingPct:      els.frankingPct.value,
     years:            els.years.value,
     sensitivityCheck: els.sensitivityCheck.checked,
+    propertyType:  els.propertyType.value,
+    cgtRules:      els.cgtRules.value,
+    inflationRate: els.inflationRate.value,
   }));
 }
 
@@ -416,6 +427,9 @@ function loadFromStorage() {
   els.dividendYield.value     = d.dividendYield;
   els.frankingPct.value          = d.frankingPct ?? 0;
   els.propertyState.value        = d.propertyState || 'NSW';
+  els.propertyType.value         = d.propertyType   || 'existing';
+  els.cgtRules.value             = d.cgtRules        || 'post-budget';
+  els.inflationRate.value        = d.inflationRate   ?? 2.5;
   els.years.value                = d.years;
   els.sensitivityCheck.checked   = !!d.sensitivityCheck;
 
@@ -460,6 +474,9 @@ function onReset() {
   els.dividendYield.value      = DEFAULTS.dividendYield;
   els.frankingPct.value        = DEFAULTS.frankingPct;
   els.propertyState.value      = DEFAULTS.propertyState;
+  els.propertyType.value       = DEFAULTS.propertyType;
+  els.cgtRules.value           = DEFAULTS.cgtRules;
+  els.inflationRate.value      = DEFAULTS.inflationRate;
   els.years.value              = DEFAULTS.years;
 
   els.autoRepayTag.classList.remove('hidden');
@@ -530,14 +547,21 @@ function onCalculate() {
   const frankingPct = (parseFloat(els.frankingPct.value) || 0) / 100;
   const maintenanceCost = activeTab === 'property' ? parseMoney(els.maintenanceCost) : 0;
 
+  const negativeGearingRestricted = activeTab === 'property' && els.propertyType.value === 'established-new';
+  const cgtRules     = activeTab === 'property' ? 'post-budget' : els.cgtRules.value;
+  const ipPrice      = activeTab === 'property' ? parseMoney(els.ipPrice) : 0;
+  const inflationRate = (parseFloat(els.inflationRate.value) || 0) / 100;
+
   const scenarioInputs = {
     loanBalance, interestRate, investmentRate, investmentLoanTerm,
     monthlyRepayment, recycleAmount,
     taxRate, investmentReturn, dividendYield, frankingPct, maintenanceCost,
     years, propertyValue, releaseAmount,
+    negativeGearingRestricted, cgtRules, ipPrice, inflationRate,
   };
 
   const rows = runScenario(scenarioInputs);
+  const rowsPreBudget = runScenario({ ...scenarioInputs, cgtRules: 'pre-budget', negativeGearingRestricted: false });
 
   let rowsHigh = null, rowsLow = null;
   if (els.sensitivityCheck.checked) {
@@ -555,7 +579,8 @@ function onCalculate() {
     els.lvrWarning.style.display = 'none';
   }
 
-  renderResults(rows, years, { totalTaxSaved, rowsHigh, rowsLow });
+  renderResults(rows, years, { totalTaxSaved, rowsHigh, rowsLow, rowsPreBudget });
+  els.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -622,7 +647,7 @@ function populatePrintInputs() {
   ).join('');
 }
 
-function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = null }) {
+function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = null, rowsPreBudget = null }) {
   els.placeholder.style.display = 'none';
   els.results.style.display = 'flex';
   populatePrintInputs();
@@ -638,11 +663,26 @@ function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = 
   els.cardTotalTax.className      = 'card-value pass';
   els.cardTotalTaxSub.textContent = `over ${years} years`;
 
-  // Wealth gain
+  // Wealth gain (pre-CGT)
   const wealthGain = last.netWealthRecycling - last.netWealthBaseline;
   els.cardWealthGain.textContent = formatCurrency(wealthGain);
   els.cardWealthGain.className   = `card-value ${wealthGain >= 0 ? 'pass' : 'fail'}`;
   els.cardWealthSub.textContent  = `after ${years} years`;
+
+  // Wealth gain after CGT
+  const wealthGainCGT = last.netWealthAfterCGT - last.netWealthBaseline;
+  els.cardWealthGainCGT.textContent = formatCurrency(wealthGainCGT);
+  els.cardWealthGainCGT.className   = `card-value ${wealthGainCGT >= 0 ? 'pass' : 'fail'}`;
+  els.cardWealthCGTSub.textContent  = `if exited in year ${years}`;
+
+  // Pre-budget wealth gain (old rules: 50% CGT discount, no negative gearing restriction)
+  if (rowsPreBudget) {
+    const lastPre = rowsPreBudget[rowsPreBudget.length - 1];
+    const wealthGainPre = lastPre.netWealthAfterCGT - lastPre.netWealthBaseline;
+    els.cardWealthPreBudget.textContent = formatCurrency(wealthGainPre);
+    els.cardWealthPreBudget.className   = `card-value ${wealthGainPre >= 0 ? 'pass' : 'fail'}`;
+    els.cardWealthPreBudgetSub.textContent = `under pre-2026 rules`;
+  }
 
   // Verdict
   const v = els.verdict;
@@ -703,6 +743,7 @@ function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = 
       <td class="td-pass">${formatCurrency(r.taxSaving)}</td>
       <td class="${r.netCashFlow >= 0 ? 'td-pass' : 'td-warn'}">${formatCurrency(r.netCashFlow)}</td>
       <td class="${wDiff >= 0 ? 'td-pass' : 'td-warn'}">${formatCurrency(r.netWealthRecycling)}</td>
+      <td class="${r.netWealthAfterCGT >= 0 ? 'td-pass' : 'td-warn'}">${formatCurrency(r.netWealthAfterCGT)}</td>
       <td>${formatCurrency(r.netWealthBaseline)}</td>
     `;
     els.yearTableBody.appendChild(tr);
