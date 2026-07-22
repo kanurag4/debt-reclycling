@@ -78,6 +78,12 @@ const els = {
   yearTableBody:      $('yearTableBody'),
 };
 
+const FIELD_MAP = {
+  loanBalance:  { param: 'b', profileKey: 'mortgageBalance' },
+  interestRate: { param: 'r', profileKey: 'mortgageRate' },
+  propertyState:{ param: 's', profileKey: 'state' },
+};
+
 let activeTab = 'offset';
 let loanChart = null;
 let wealthChart = null;
@@ -141,17 +147,116 @@ function formatMoneyInput(el) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+let scenarioParamsApplied = false;
+let initializing = true; // suppresses profile push from auto-calc functions during load
+const hadSavedStateOnLoad = !!localStorage.getItem(STORAGE_KEY); // captured before loadFromStorage() writes it
+
+// Tracks which shared-profile fields the user has genuinely edited in this
+// session. Only touched fields are pushed to the shared profile in
+// saveToStorage() — this prevents an untouched, still-at-default field (e.g.
+// propertyState left at 'NSW') from clobbering a value another tool
+// legitimately wrote to the shared profile. Set to true only inside real
+// user-input event handlers below — never during loadFromStorage,
+// applyScenarioParams, or applyProfilePrefill, which apply values
+// programmatically rather than via genuine user interaction.
+const touchedProfileFields = { mortgageBalance: false, mortgageRate: false, state: false };
+
 loadFromStorage();
+applyScenarioParams();
+applyProfilePrefill();
+initializing = false;
 updateTaxRateDisplay();
 updateEffectiveRate();
 updateInvLoanRepay();
 updateYearsLabel();
 bindEvents();
+if (!isNative) {
+  bindCopyLinkButton();
+} else {
+  const copyLinkBtn = document.getElementById('copyLinkBtn');
+  if (copyLinkBtn) copyLinkBtn.style.display = 'none';
+}
+
+// ── Cross-tool scenario links & profile pre-fill ───────────────────────────────
+
+function applyScenarioParams() {
+  if (isNative || !window.kvScenario) return;
+  const params = window.kvScenario.readParams(FIELD_MAP);
+  if (Object.keys(params).length === 0) return;
+  if (params.loanBalance)   els.loanBalance.value   = formatMoneyVal(params.loanBalance);
+  if (params.interestRate)  els.interestRate.value  = params.interestRate;
+  if (params.propertyState) els.propertyState.value = params.propertyState;
+  if (params.loanBalance || params.interestRate) autoCalcRepayment();
+  if (params.propertyState && !stampDutyManual) autoCalcStampDuty();
+  scenarioParamsApplied = true;
+}
+
+function applyProfilePrefill() {
+  if (isNative || !window.kvScenario || scenarioParamsApplied) return;
+  if (hadSavedStateOnLoad) return; // tool's own saved value always wins
+  const profile = window.kvScenario.getProfile();
+  let prefilled = false;
+  if (profile.fields.mortgageBalance) {
+    els.loanBalance.value = formatMoneyVal(profile.fields.mortgageBalance);
+    prefilled = true;
+  }
+  if (profile.fields.mortgageRate) {
+    els.interestRate.value = String(profile.fields.mortgageRate);
+    prefilled = true;
+  }
+  if (profile.fields.state) {
+    els.propertyState.value = profile.fields.state;
+    prefilled = true;
+  }
+  if (prefilled) {
+    if (!repaymentManual) autoCalcRepayment();
+    if (!stampDutyManual) autoCalcStampDuty();
+    showPrefillChip();
+  }
+}
+
+function showPrefillChip() {
+  const chip = document.createElement('div');
+  chip.className = 'kv-prefill-chip';
+  chip.innerHTML = 'Pre-filled from your other tools · <button type="button" id="clearPrefillBtn">clear</button>';
+  els.loanBalance.parentElement.insertAdjacentElement('afterend', chip);
+  document.getElementById('clearPrefillBtn').addEventListener('click', function () {
+    els.loanBalance.value   = formatMoneyVal(DEFAULTS.loanBalance);
+    els.interestRate.value  = DEFAULTS.interestRate;
+    els.propertyState.value = DEFAULTS.propertyState;
+    chip.remove();
+    // autoCalcRepayment/autoCalcStampDuty call saveToStorage() internally, which
+    // would push these hardcoded defaults into the shared profile — suppress that.
+    initializing = true;
+    if (!repaymentManual) autoCalcRepayment();
+    if (!stampDutyManual) autoCalcStampDuty();
+    initializing = false;
+    saveLocalOnly();
+  });
+}
+
+function bindCopyLinkButton() {
+  const btn = document.getElementById('copyLinkBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    const getValue = (inputId) => els[inputId] ? els[inputId].value : '';
+    const link = window.kvScenario.buildLink(FIELD_MAP, getValue);
+    navigator.clipboard.writeText(link).then(function () {
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(function () {
+        btn.textContent = '🔗 Create link to share this scenario';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  });
+}
 
 // ── Events ───────────────────────────────────────────────────────────────────
 
 function bindEvents() {
-  els.tabs.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+  els.tabs.forEach(btn => btn.addEventListener('click', () => { switchTab(btn.dataset.tab); saveToStorage(); }));
 
   // Money input formatting
   document.querySelectorAll('.money-input').forEach(el => {
@@ -159,8 +264,8 @@ function bindEvents() {
   });
 
   // Auto-repayment
-  els.loanBalance.addEventListener('input', onLoanDetailsChange);
-  els.interestRate.addEventListener('input', onLoanDetailsChange);
+  els.loanBalance.addEventListener('input', () => { touchedProfileFields.mortgageBalance = true; onLoanDetailsChange(); });
+  els.interestRate.addEventListener('input', () => { touchedProfileFields.mortgageRate = true; onLoanDetailsChange(); });
   els.loanTerm.addEventListener('input', onLoanDetailsChange);
   els.monthlyRepayment.addEventListener('input', onRepaymentManualEdit);
   els.resetRepayBtn.addEventListener('click', onResetRepayment);
@@ -170,6 +275,7 @@ function bindEvents() {
   els.stampDuty.addEventListener('input', onStampDutyManualEdit);
   els.resetStampBtn.addEventListener('click', onResetStampDuty);
   els.propertyState.addEventListener('change', () => {
+    touchedProfileFields.state = true;
     if (!stampDutyManual) autoCalcStampDuty();
     saveToStorage();
   });
@@ -207,7 +313,6 @@ function switchTab(tab) {
   $(`fields-${tab}`).classList.add('active');
   $('inv-stocks-fields').style.display = tab === 'property' ? 'none' : '';
   updateInvLoanRepay();
-  saveToStorage();
 }
 
 // ── Auto-repayment ─────────────────────────────────────────────────────────────
@@ -361,6 +466,20 @@ function updateYearsLabel() {
 // ── Storage ───────────────────────────────────────────────────────────────────
 
 function saveToStorage() {
+  saveLocalOnly();
+
+  if (window.kvScenario && !isNative && !initializing) {
+    const profileUpdate = {};
+    if (touchedProfileFields.mortgageBalance) profileUpdate.mortgageBalance = parseMoney(els.loanBalance);
+    if (touchedProfileFields.mortgageRate)    profileUpdate.mortgageRate = parseFloat(els.interestRate.value) || undefined;
+    if (touchedProfileFields.state)           profileUpdate.state = els.propertyState.value;
+    if (Object.keys(profileUpdate).length > 0) {
+      window.kvScenario.saveProfile(profileUpdate);
+    }
+  }
+}
+
+function saveLocalOnly() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     tab: activeTab, repaymentManual, stampDutyManual, maintenanceCostManual,
     loanBalance:      els.loanBalance.value,
@@ -486,9 +605,15 @@ function onReset() {
   switchTab('offset');
   updateTaxRateDisplay();
   updateEffectiveRate();
+  // autoCalcRepayment/autoCalcStampDuty/autoCalcMaintenance call saveToStorage()
+  // internally, which would push these hardcoded defaults into the shared profile —
+  // suppress that the same way onClearPrefill does.
+  initializing = true;
   autoCalcRepayment();
   autoCalcStampDuty();
   autoCalcMaintenance();
+  initializing = false;
+  saveLocalOnly();
   updateInvLoanRepay();
   updateNetEquity();
   updateYearsLabel();
@@ -712,18 +837,18 @@ function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = 
 
   renderLineChart('loanChart', labels, [
     { label: 'Recycling (total loan)', data: rows.map(r => r.totalLoanBalance), color: '#38bdf8' },
-    { label: 'Baseline (no recycling)', data: rows.map(r => r.baselineBalance),  color: '#94a3b8' },
+    { label: 'Baseline (no recycling)', data: rows.map(r => r.baselineBalance),  color: '#93a0bd' },
   ], loanChart, c => { loanChart = c; });
 
   const wealthDatasets = [
     { label: 'Net Wealth (recycling)', data: rows.map(r => r.netWealthRecycling), color: '#22c55e' },
-    { label: 'Net Wealth (baseline)',  data: rows.map(r => r.netWealthBaseline),  color: '#94a3b8' },
+    { label: 'Net Wealth (baseline)',  data: rows.map(r => r.netWealthBaseline),  color: '#93a0bd' },
   ];
   if (rowsHigh) wealthDatasets.push(
     { label: 'Optimistic (+2%)', data: rowsHigh.map(r => r.netWealthRecycling), color: '#86efac', dash: [6, 4] }
   );
   if (rowsLow) wealthDatasets.push(
-    { label: 'Pessimistic (−2%)', data: rowsLow.map(r => r.netWealthRecycling), color: '#f59e0b', dash: [6, 4] }
+    { label: 'Pessimistic (−2%)', data: rowsLow.map(r => r.netWealthRecycling), color: '#f97316', dash: [6, 4] }
   );
 
   renderLineChart('wealthChart', labels, wealthDatasets, wealthChart, c => { wealthChart = c; });
@@ -748,6 +873,36 @@ function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = 
     `;
     els.yearTableBody.appendChild(tr);
   });
+
+  renderNextStepSuggestion();
+}
+
+// ── Next-step suggestion: Debt Recycling → Salary Sacrifice / Super Compare ────
+
+function renderNextStepSuggestion() {
+  const container = document.getElementById('nextStepSuggestion');
+  if (!container || isNative || !window.kvScenario) return;
+
+  const income = parseMoney(els.income);
+  if (!income || income <= 0) { container.innerHTML = ''; return; }
+
+  const superCompareFieldMap = {
+    salary: { param: 'i' },
+  };
+  const getValue = (inputId) => ({
+    salary: String(income),
+  }[inputId]);
+  const href = window.kvScenario.buildLink(
+    superCompareFieldMap,
+    getValue,
+    location.origin + '/super-compare/'
+  );
+
+  window.kvScenario.renderSuggestion(container, {
+    text: 'Debt recycling frees up cash flow over time — see if directing some of it into extra super contributions via salary sacrifice grows your wealth faster',
+    href,
+    dismissKey: 'debt-recycling:super-compare',
+  });
 }
 
 function renderLineChart(canvasId, labels, datasets, existingChart, setChart) {
@@ -766,15 +921,15 @@ function renderLineChart(canvasId, labels, datasets, existingChart, setChart) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: '#94a3b8', font: { size: 12 } } },
+        legend: { labels: { color: '#93a0bd', font: { size: 12 } } },
         tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } },
       },
       scales: {
-        x: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: '#334155' } },
+        x: { ticks: { color: '#93a0bd', font: { size: 11 } }, grid: { color: '#223052' } },
         y: {
           afterFit: (scale) => { scale.width = 88; },
-          ticks: { color: '#94a3b8', font: { size: 11 }, callback: v => formatCurrency(v), maxTicksLimit: 6 },
-          grid: { color: '#334155' },
+          ticks: { color: '#93a0bd', font: { size: 11 }, callback: v => formatCurrency(v), maxTicksLimit: 6 },
+          grid: { color: '#223052' },
         },
       },
     },

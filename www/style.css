@@ -1,24 +1,26 @@
 :root {
-  --kv-bg:       #0f172a;
-  --kv-card:     #1e293b;
-  --kv-card-2:   #273449;
-  --kv-text:     #f1f5f9;
-  --kv-muted:    #94a3b8;
-  --kv-accent:   #38bdf8;
-  --kv-accent-h: #0ea5e9;
-  --kv-border:   #334155;
+  --kv-bg:       #0b1120;
+  --kv-card:     #111a30;
+  --kv-card-2:   #182342;
+  --kv-text:     #f5f7fc;
+  --kv-muted:    #93a0bd;
+  --kv-accent:   #f5a623;
+  --kv-accent-h: #ffb84d;
+  --kv-border:   #223052;
   --kv-pass:     #22c55e;
   --kv-fail:     #ef4444;
-  --kv-warn:     #f59e0b;
+  --kv-warn:     #f97316;
 }
 
 html:not(.dark) {
-  --kv-bg:     #fafaf9;
+  --kv-bg:     #faf8f4;
   --kv-card:   #ffffff;
-  --kv-card-2: #f5f5f2;
-  --kv-text:   #1c1917;
-  --kv-muted:  #78716c;
-  --kv-border: #e7e5e4;
+  --kv-card-2: #f1ede4;
+  --kv-text:   #16202b;
+  --kv-muted:  #4d5c6b;
+  --kv-border: #e7e2d8;
+  --kv-accent: #1a3a5f;
+  --kv-warn:   #b45309;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,9 +28,12 @@ html:not(.dark) {
 html, body {
   background: var(--kv-bg);
   color: var(--kv-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 16px;
+  font-family: 'Carlito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16.5px;
   line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Header ── */
@@ -38,50 +43,8 @@ html, body {
   position: relative;
   text-align: center;
 }
-.home-logo {
-  position: absolute;
-  top: 18px;
-  left: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  text-decoration: none;
-}
-.home-logo img { width: 32px; height: 32px; opacity: 0.9; display: block; transition: opacity 0.15s; }
-.home-logo:hover img { opacity: 1; }
-.home-logo-label {
-  font-size: 0.6rem;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  color: var(--kv-muted);
-  transition: color 0.15s;
-  white-space: nowrap;
-}
-.home-logo:hover .home-logo-label { color: var(--kv-accent); }
 .app-header h1 { font-size: 1.5rem; padding: 0 52px; }
 .app-header p  { color: var(--kv-muted); font-size: 0.88rem; margin-top: 4px; padding: 0 52px; }
-
-/* ── Theme toggle ── */
-.theme-toggle {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--kv-border);
-  background: var(--kv-card);
-  cursor: pointer;
-  color: var(--kv-muted);
-  font-size: 0.9rem;
-  transition: background 0.15s, border-color 0.15s;
-}
-.theme-toggle:hover {
-  background: var(--kv-card-2);
-  border-color: var(--kv-accent);
-  color: var(--kv-text);
-}
 
 /* ── Layout ── */
 main {
@@ -104,6 +67,16 @@ main {
   .app-header h1 { font-size: 1.1rem; padding: 0; }
   .app-header p  { padding: 0; font-size: 0.82rem; }
   .layout { grid-template-columns: 1fr; }
+}
+
+/* ── Disclaimer banner ── */
+.disclaimer-banner {
+  text-align: center;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  padding: 6px 24px;
+  margin: 0;
 }
 
 /* ── Tabs ── */
@@ -244,7 +217,7 @@ main {
 .auto-tag {
   display: inline-block;
   padding: 1px 7px;
-  background: rgba(56,189,248,0.12);
+  background: rgba(245,166,35,0.12);
   color: var(--kv-accent);
   border-radius: 999px;
   font-size: 0.68rem;
@@ -321,7 +294,7 @@ main {
   border-radius: 7px;
   font-size: 0.88rem;
   border: 1px solid var(--kv-warn);
-  background: rgba(245,158,11,0.08);
+  background: rgba(249,115,22,0.08);
   color: var(--kv-warn);
 }
 
@@ -336,7 +309,7 @@ main {
 }
 .warning-banner.warn {
   display: block;
-  background: rgba(245,158,11,0.1);
+  background: rgba(249,115,22,0.1);
   border-color: var(--kv-warn);
   color: var(--kv-warn);
 }
@@ -441,7 +414,7 @@ main {
   color: var(--kv-pass);
 }
 .verdict.warn {
-  background: rgba(245,158,11,0.1);
+  background: rgba(249,115,22,0.1);
   border-color: var(--kv-warn);
   color: var(--kv-warn);
 }
@@ -599,7 +572,7 @@ tbody tr:hover { background: var(--kv-card-2); }
 
   .tabs, .input-panel, .btn-pdf, footer { display: none !important; }
 
-  .app-header { padding: 12px 0; border-bottom: 1px solid #334155; }
+  .app-header { padding: 12px 0; border-bottom: 1px solid var(--kv-border); }
   .home-logo { display: none; }
 
   main { padding: 0; max-width: 100%; }
@@ -717,3 +690,75 @@ tbody tr:hover { background: var(--kv-card-2); }
   color: var(--kv-pass);
   letter-spacing: 0.3px;
 }
+
+
+/* ── Copy scenario link button ── */
+.kv-copy-link-btn {
+  background: color-mix(in srgb, var(--kv-accent) 14%, var(--kv-card));
+  border: 1px solid var(--kv-accent);
+  color: var(--kv-accent);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--kv-accent) 25%, transparent);
+  transition: background 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.kv-copy-link-btn:hover {
+  background: var(--kv-accent);
+  color: var(--kv-bg);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--kv-accent) 40%, transparent);
+}
+.kv-copy-link-btn.copied {
+  background: color-mix(in srgb, var(--kv-pass) 14%, var(--kv-card));
+  color: var(--kv-pass);
+  border-color: var(--kv-pass);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--kv-pass) 25%, transparent);
+}
+
+/* ── Profile pre-fill chip ── */
+.kv-prefill-chip {
+  font-size: 0.78rem;
+  color: var(--kv-accent);
+  margin-top: 4px;
+}
+.kv-prefill-chip button {
+  background: none;
+  border: none;
+  color: var(--kv-accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0;
+}
+
+/* ── Cross-tool next-step suggestion card ── */
+.kv-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--kv-card-2);
+  border: 1px solid var(--kv-accent);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--kv-text);
+  font-size: 0.88rem;
+  transition: background 0.15s;
+}
+.kv-suggestion:hover { background: var(--kv-card); }
+.kv-suggestion-arrow { color: var(--kv-accent); flex-shrink: 0; }
+.kv-suggestion-close {
+  background: none;
+  border: none;
+  color: var(--kv-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.kv-suggestion-close:hover { color: var(--kv-text); }

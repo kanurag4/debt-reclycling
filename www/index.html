@@ -1,10 +1,38 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Debt Recycling Calculator — KashVector</title>
+  <meta name="theme-color" content="#0b1120">
+  <title>Debt Recycling Calculator (Australia) — Turn Your Mortgage Into Deductible Debt | KashVector</title>
+  <meta name="description" content="How much wealth could debt recycling build over your mortgage's life? Model it with 2026 ATO rules — negative gearing, CGT, franking credits. Free Australian calculator.">
+  <link rel="canonical" href="https://kashvector.com/debt-recycling/">
+  <meta property="og:title" content="Debt Recycling Calculator (Australia) — Turn Your Mortgage Into Deductible Debt | KashVector">
+  <meta property="og:description" content="How much wealth could debt recycling build over your mortgage's life? Model it with 2026 ATO rules — negative gearing, CGT, franking credits. Free Australian calculator.">
+  <meta property="og:url" content="https://kashvector.com/debt-recycling/">
+  <meta property="og:type" content="website">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "What is debt recycling?", "acceptedAnswer": { "@type": "Answer", "text": "Debt recycling replaces non-deductible home loan debt with tax-deductible investment debt. The ATO allows you to deduct interest on money borrowed to invest in income-producing assets. By recycling debt, you gradually convert your non-deductible mortgage into a deductible investment loan, reducing your tax bill each year." } },
+      { "@type": "Question", "name": "Is debt recycling legal in Australia?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — it is a legitimate tax strategy, but it must be structured correctly. The ATO requires a clear, direct link between the borrowed funds and the income-producing investment. Always consult a licensed financial adviser or tax accountant before implementing." } },
+      { "@type": "Question", "name": "What are the risks of debt recycling?", "acceptedAnswer": { "@type": "Answer", "text": "Your investments can fall in value while your debt remains fixed. A sharp market downturn can significantly worsen your net position. Debt recycling amplifies both gains and losses — it is not appropriate for everyone." } },
+      { "@type": "Question", "name": "How is the tax saving calculated?", "acceptedAnswer": { "@type": "Answer", "text": "The calculator multiplies your marginal tax rate by the deductible expenses each year. For shares and ETFs this is just the investment loan interest. For investment properties it also includes annual maintenance costs, since both interest and maintenance are ATO-deductible against rental income." } },
+      { "@type": "Question", "name": "What changed in the 2026 Federal Budget for debt recycling?", "acceptedAnswer": { "@type": "Answer", "text": "The May 2026 Federal Budget introduced three changes: new income tax brackets (17% for $18,201–$45,000, effective 1 July 2026); negative gearing restriction for established investment properties purchased after 12 May 2026 (excess losses quarantined from 1 July 2027); and the 50% CGT discount replaced by inflation indexation with a 30% minimum tax rate for assets acquired after 12 May 2026 (effective 1 July 2027). New builds and pre-12 May 2026 properties are grandfathered." } },
+      { "@type": "Question", "name": "What is the negative gearing restriction and who does it affect?", "acceptedAnswer": { "@type": "Answer", "text": "From 1 July 2027, investors who purchase an established investment property after 12 May 2026 can no longer offset rental losses against their salary or wage income. Excess losses are quarantined and can only be applied against future rental income or capital gains from the same property. Properties purchased before 12 May 2026 and new builds after that date are not affected." } },
+      { "@type": "Question", "name": "How did CGT change under the 2026 budget?", "acceptedAnswer": { "@type": "Answer", "text": "Before the budget, investors selling assets held longer than 12 months received a 50% CGT discount. For assets acquired after 12 May 2026, the 50% discount is replaced by inflation indexation: the original cost base is adjusted upward each year by the assumed inflation rate, and you pay tax only on the gain above the indexed cost base at your marginal rate with a minimum of 30%." } },
+      { "@type": "Question", "name": "Why is net wealth negative in the year table?", "acceptedAnswer": { "@type": "Answer", "text": "Net wealth in this tool is calculated as investment value minus all outstanding loan balances (both home loan and investment loan). Early in the projection, the debt is large relative to your investment portfolio. This does not mean you are insolvent — it simply does not include your home's value. What matters is the difference between the recycling and baseline columns." } }
+    ]
+  }
+  </script>
   <script src="/kv-theme.js"></script>
+  <script src="/kv-scenario.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/kv-shared.css">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="../debt-recycling-icon.svg">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -23,6 +51,11 @@
   </div>
   <button class="theme-toggle" onclick="window.kvTheme.toggle()" aria-label="Toggle theme"></button>
 </header>
+<div id="kv-nav-placeholder" style="height:41px"></div>
+<script src="/kv-nav.js"></script>
+<script src="/kv-banner.js"></script>
+
+<p class="disclaimer-banner">Important Disclaimer: We're still fine-tuning this tool, so please treat results as estimates. The calculations reflect broad 2026 Budget assumptions; however, upcoming legislative changes could greatly impact your specific situation. Use this as a general guide to understanding the 30% CGT floor and index-based tax shifts.</p>
 
 <main>
   <div class="tabs">
@@ -239,6 +272,8 @@
 
     <!-- ── Results panel ── -->
     <section class="results-panel" id="resultsPanel">
+      <button id="copyLinkBtn" class="kv-copy-link-btn" type="button">🔗 Create link to share this scenario</button>
+
       <div class="placeholder" id="placeholder">
         Enter your details and click <strong>Calculate</strong> to see your debt recycling projection.
       </div>
@@ -334,6 +369,8 @@
             </table>
           </div>
         </details>
+
+        <div id="nextStepSuggestion"></div>
       </div>
     </section>
   </div>
@@ -342,9 +379,15 @@
 <section class="tool-info">
   <div class="tool-about">
     <h2>About this tool</h2>
-    <p>Model the Australian debt recycling strategy — converting non-deductible home loan debt into tax-deductible investment debt. As you pay down your mortgage, you redraw an equal amount to invest, making that interest tax-deductible. Over time, your after-tax returns compound faster than a standard mortgage.</p>
+    <p>This free debt recycling calculator lets you model three Australian debt recycling strategies — offset account, equity-to-shares/ETFs, and equity-to-property — and compare the long-term wealth outcome against a baseline of making no changes. It converts non-deductible home loan debt into tax-deductible investment debt: as you pay down your mortgage, you redraw an equal amount to invest, making that interest tax-deductible. Over time, your after-tax returns compound faster than a standard mortgage.</p>
     <p>Suited to Australian homeowners with stable income, an investment mindset, and a long time horizon. Not suitable for those close to retirement, tight cash flow, or a low risk tolerance.</p>
     <p>Updated for the <strong style="color:var(--kv-text)">2026–27 Federal Budget</strong>: reflects the new tax brackets (effective 1 July 2026), the negative gearing restriction on established investment properties (1 July 2027), and the replacement of the 50% CGT discount with inflation indexation (1 July 2027).</p>
+    <p style="margin-top:12px;font-size:0.85rem;"><strong style="color:var(--kv-text)">Further reading:</strong> <a href="/articles/debt-recycling-101/" style="color:var(--kv-accent);text-decoration:none;" onmouseover="this.style.color='var(--kv-accent-h)'" onmouseout="this.style.color='var(--kv-accent)'">Debt Recycling 101 — how the three strategies work, in plain English →</a></p>
+    <p style="margin-top:12px;font-size:0.85rem;"><strong style="color:var(--kv-text)">Researching shares too?</strong> Try the free <a href="/dcf/" style="color:var(--kv-accent);text-decoration:none;" onmouseover="this.style.color='var(--kv-accent-h)'" onmouseout="this.style.color='var(--kv-accent)'">DCF valuation tool</a> or browse the <a href="/dcf/asx-undervalued/" style="color:var(--kv-accent);text-decoration:none;" onmouseover="this.style.color='var(--kv-accent-h)'" onmouseout="this.style.color='var(--kv-accent)'">weekly undervalued ASX 300 screen</a>.</p>
+    <p style="margin-top:12px;font-size:0.85rem;"><strong style="color:var(--kv-text)">Further reading:</strong> <a href="/articles/investing-after-2026-budget/" style="color:var(--kv-accent);text-decoration:none;" onmouseover="this.style.color='var(--kv-accent-h)'" onmouseout="this.style.color='var(--kv-accent)'">How to Invest in Your 20s–40s after the 2026 Budget — PPOR equity + debt recycling as the centrepiece strategy →</a></p>
+    <p style="margin-top:8px;font-size:0.85rem;"><a href="/articles/bracket-creep-2026/" style="color:var(--kv-accent);text-decoration:none;" onmouseover="this.style.color='var(--kv-accent-h)'" onmouseout="this.style.color='var(--kv-accent)'">The Leaky Bucket — how debt recycling creates a tax shield against bracket creep →</a></p>
+    <p style="margin-top:12px;font-size:0.85rem;"><strong style="color:var(--kv-text)">Further reading:</strong> <a href="/articles/debt-recycling-high-yield/" style="color:var(--kv-accent);text-decoration:none;" onmouseover="this.style.color='var(--kv-accent-h)'" onmouseout="this.style.color='var(--kv-accent)'">Why High-Yield ETFs are the Smarter Choice for Debt Recycling — the cash-flow math under current interest rates →</a></p>
+    <p style="margin-top:8px;font-size:0.85rem;"><a href="/articles/noise-vs-fundamentals-etf-investing/" style="color:var(--kv-accent);text-decoration:none;" onmouseover="this.style.color='var(--kv-accent-h)'" onmouseout="this.style.color='var(--kv-accent)'">Noise vs. Fundamentals — why the golden rules of ETF investing haven't changed →</a></p>
   </div>
   <div class="tool-faq">
     <h2>Frequently asked questions</h2>
@@ -435,11 +478,31 @@
       <p>This does not mean you are insolvent — it simply does not include your home's value or other assets. What matters is the <em>difference</em> between the two columns. If the recycling net wealth is less negative (or more positive) than the baseline, debt recycling is building more wealth. The "Wealth Gain" card and verdict banner reflect this difference.</p>
     </details>
 
+    <details class="faq-item">
+      <summary>How does this debt recycling calculator work?</summary>
+      <p>Enter your home loan balance, interest rate, property value, and the amount you plan to recycle each year. The calculator models two parallel scenarios year by year: your baseline (standard mortgage with no recycling) and the debt recycling scenario. It calculates the deductible investment loan interest, annual tax saving at your marginal rate, investment portfolio growth, and net wealth at each year — then shows you the cumulative wealth gain from recycling.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>What do the ATO debt recycling rules say for 2026?</summary>
+      <p>The ATO requires a clear and direct link between the borrowed funds and the income-producing investment — the loan proceeds must go directly into shares, ETFs, or another income-producing asset, not be mixed with personal spending. The 2026 Federal Budget introduced two relevant changes: a restriction on negative gearing for newly purchased established investment properties (from 1 July 2027), and a shift to CGT indexation replacing the 50% discount for assets purchased after 1 July 2025. Debt recycling into shares or ETFs is unaffected by the negative gearing restriction.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>What is a practical debt recycling example?</summary>
+      <p>You have a $600,000 home loan at 6% interest. You draw $20,000 of equity from your offset account and invest it in a broad ASX ETF. The $20,000 investment loan generates $1,200/year in deductible interest. At a 34.5% marginal rate that's a $414 annual tax saving. The ETF earns 9% p.a. (capital + dividends). You repeat this each year as your home loan reduces. Over 20 years the compounding of tax savings and investment returns can add hundreds of thousands of dollars compared with a standard mortgage — this calculator models that precisely for your numbers.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>Is this debt recycling calculator suitable for Australian investors?</summary>
+      <p>Yes — it is built specifically for the Australian tax system. It uses current Australian marginal tax rates (including the 2% Medicare levy), the 2026–27 Federal Budget tax bracket changes, Australian CGT rules (including the new indexation method), and the 2026 negative gearing restrictions. It covers both shares/ETF debt recycling and investment property debt recycling.</p>
+    </details>
+
   </div>
 </section>
 
 <footer style="text-align:center;padding:24px;color:var(--kv-muted);font-size:0.8rem;">
-  KashVector — for educational purposes only. Not financial advice.
+  KashVector — for educational purposes only. Not financial advice. &nbsp;·&nbsp; © 2026 KashVector. All rights reserved.
 </footer>
 
 <script src="utils.js"></script>

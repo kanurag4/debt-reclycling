@@ -56,28 +56,30 @@ All other files (`utils.js`, `calc/*.js`) must be pure functions with zero DOM a
 
 ## Design System
 
-Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md`
+Follows KashVector design rules. Source: `C:\Projects\Rules\kashvector-design.md`. **Migrated to the "Ink & Amber" / "Paper & Ink" rebrand 2026-07-22** — see `Kashvector.md`'s "Ink & Amber rebrand — rollout status" section (in `C:\Projects\StockAnalysis`) for the full token table and rollout tracker across all KashVector tools.
 
-### Colours (CSS variables)
+### Colours (CSS variables, dark mode "Ink & Amber" default)
 ```css
---kv-bg:       #0f172a   /* page background */
---kv-card:     #1e293b   /* card backgrounds */
---kv-card-2:   #273449   /* nested cards, inputs */
---kv-text:     #f1f5f9   /* primary text */
---kv-muted:    #94a3b8   /* secondary text */
---kv-accent:   #38bdf8   /* buttons, active states, UI chrome only */
---kv-accent-h: #0ea5e9   /* hover state */
---kv-border:   #334155   /* all borders */
+--kv-bg:       #0b1120   /* page background */
+--kv-card:     #111a30   /* card backgrounds */
+--kv-card-2:   #182342   /* nested cards, inputs */
+--kv-text:     #f5f7fc   /* primary text */
+--kv-muted:    #93a0bd   /* secondary text */
+--kv-accent:   #f5a623   /* buttons, active states, UI chrome only */
+--kv-accent-h: #ffb84d   /* hover state */
+--kv-border:   #223052   /* all borders */
 --kv-pass:     #22c55e   /* positive values, savings, good outcomes */
 --kv-fail:     #ef4444   /* negative values, warnings */
---kv-warn:     #f59e0b   /* caution states */
+--kv-warn:     #f97316   /* caution states */
 ```
+Light mode "Paper & Ink" overrides live in the `html:not(.dark)` block in `style.css` — bg `#faf8f4`, card `#ffffff`, accent `#1a3a5f` (dark navy, inverts with dark mode's amber), warn `#b45309`.
 
 ### Rules
-- Always dark mode (no light toggle needed)
+- **Has a light/dark toggle** via the shared `kv-theme.js` (the "always dark mode, no light toggle" note below is stale — corrected 2026-07-22)
 - `slate-*` colours only (never `gray-*` or `stone-*`)
-- Accent (sky blue) for UI chrome only — never for semantic meaning
-- Green = positive/savings, Red = negative/risk, Amber = caution
+- Accent (amber) for UI chrome only — never for semantic meaning
+- Green = positive/savings, Red = negative/risk, Amber(warn) = caution — note amber now plays two roles (accent *and* warn use different amber shades); see the "Amber has two roles" rule in `Kashvector.md`
+- Font: Carlito (Google Fonts), body font-size bumped ~0.5px, `font-variant-numeric: tabular-nums`
 - All dollar inputs use `type="text" inputmode="numeric"` — never `type="number"` for money fields
 
 ## Calculation Logic
