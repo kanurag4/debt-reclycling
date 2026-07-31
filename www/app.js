@@ -2,6 +2,16 @@
 
 const $ = (id) => document.getElementById(id);
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch]));
+}
+
+// Glossary term annotation — degrades to a plain escaped label if
+// kv-glossary.js failed to load, so a missing script never breaks rendering.
+const T = (key, label) => window.kvGlossary ? kvGlossary.term(key, label) : escapeHtml(label);
+
 const STORAGE_KEY = 'debt_recycling_inputs';
 
 const els = {
@@ -420,11 +430,11 @@ function updateNetEquity() {
 
 function updateTaxRateDisplay() {
   if (!String(els.income.value).replace(/,/g, '').trim()) {
-    els.taxRateDerived.textContent = 'Marginal rate: —';
+    els.taxRateDerived.innerHTML = T('marginal-tax-rate', 'Marginal rate') + ': —';
     return;
   }
   const rate = marginalRate(parseMoney(els.income));
-  els.taxRateDerived.textContent = `Marginal rate: ${(rate * 100).toFixed(1)}%`;
+  els.taxRateDerived.innerHTML = T('marginal-tax-rate', 'Marginal rate') + `: ${(rate * 100).toFixed(1)}%`;
 }
 
 function updateEffectiveRate() {
@@ -699,7 +709,7 @@ function onCalculate() {
   if (rows.lvrWarning) {
     const lvr = ((loanBalance + releaseAmount) / propertyValue * 100).toFixed(1);
     els.lvrWarning.style.display = 'block';
-    els.lvrWarning.textContent = `LVR after release: ${lvr}% — exceeds 80%. Lenders may require LMI or decline.`;
+    els.lvrWarning.innerHTML = T('lvr', 'LVR') + ` after release: ${lvr}% — exceeds 80%. Lenders may require ` + T('lmi', 'LMI') + ' or decline.';
   } else {
     els.lvrWarning.style.display = 'none';
   }
