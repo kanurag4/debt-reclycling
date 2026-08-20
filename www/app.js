@@ -847,12 +847,12 @@ function renderResults(rows, years, { totalTaxSaved, rowsHigh = null, rowsLow = 
 
   renderLineChart('loanChart', labels, [
     { label: 'Recycling (total loan)', data: rows.map(r => r.totalLoanBalance), color: '#38bdf8' },
-    { label: 'Baseline (no recycling)', data: rows.map(r => r.baselineBalance),  color: '#93a0bd' },
+    { label: 'Baseline (no recycling)', data: rows.map(r => r.baselineBalance),  color: '#7b8eaa' },
   ], loanChart, c => { loanChart = c; });
 
   const wealthDatasets = [
     { label: 'Net Wealth (recycling)', data: rows.map(r => r.netWealthRecycling), color: '#22c55e' },
-    { label: 'Net Wealth (baseline)',  data: rows.map(r => r.netWealthBaseline),  color: '#93a0bd' },
+    { label: 'Net Wealth (baseline)',  data: rows.map(r => r.netWealthBaseline),  color: '#7b8eaa' },
   ];
   if (rowsHigh) wealthDatasets.push(
     { label: 'Optimistic (+2%)', data: rowsHigh.map(r => r.netWealthRecycling), color: '#86efac', dash: [6, 4] }
@@ -931,15 +931,15 @@ function renderLineChart(canvasId, labels, datasets, existingChart, setChart) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: '#93a0bd', font: { size: 12 } } },
+        legend: { labels: { color: '#7b8eaa', font: { size: 12 } } },
         tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } },
       },
       scales: {
-        x: { ticks: { color: '#93a0bd', font: { size: 11 } }, grid: { color: '#223052' } },
+        x: { ticks: { color: '#7b8eaa', font: { size: 11 } }, grid: { color: '#1e3050' } },
         y: {
           afterFit: (scale) => { scale.width = 88; },
-          ticks: { color: '#93a0bd', font: { size: 11 }, callback: v => formatCurrency(v), maxTicksLimit: 6 },
-          grid: { color: '#223052' },
+          ticks: { color: '#7b8eaa', font: { size: 11 }, callback: v => formatCurrency(v), maxTicksLimit: 6 },
+          grid: { color: '#1e3050' },
         },
       },
     },
