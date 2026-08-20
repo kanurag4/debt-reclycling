@@ -11,15 +11,18 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Header ── */
+/* ── Header — compact single row (redesign 2026-08-19). Home-logo and
+   tagline dropped: kv-nav.js's dropdown nav already covers branding and
+   wayfinding. ── */
 .app-header {
-  padding: 20px 16px 14px;
-  border-bottom: 1px solid var(--kv-border);
   position: relative;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 60px;
+  border-bottom: 1px solid var(--kv-border);
 }
-.app-header h1 { font-size: 1.5rem; padding: 0 52px; }
-.app-header p  { color: var(--kv-muted); font-size: 0.88rem; margin-top: 4px; padding: 0 52px; }
+.app-header h1 { font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; }
 
 /* ── Layout ── */
 main {
@@ -35,12 +38,9 @@ main {
   align-items: start;
 }
 @media (max-width: 780px) {
-  .app-header { display: flex; align-items: flex-start; gap: 8px; padding: 12px 16px; }
-  .home-logo { position: static; flex: 0 0 auto; order: 1; padding-top: 6px; }
-  .app-header-center { flex: 1; min-width: 0; order: 2; text-align: center; }
-  .theme-toggle { position: static; flex: 0 0 auto; order: 3; }
-  .app-header h1 { font-size: 1.1rem; padding: 0; }
-  .app-header p  { padding: 0; font-size: 0.82rem; }
+  .app-header { padding: 10px 52px; }
+  .theme-toggle { width: 44px; height: 44px; }
+  .app-header h1 { font-size: 1.05rem; }
   .layout { grid-template-columns: 1fr; }
 }
 
@@ -192,7 +192,7 @@ main {
 .auto-tag {
   display: inline-block;
   padding: 1px 7px;
-  background: rgba(245,166,35,0.12);
+  background: rgba(251,191,36,0.12);
   color: var(--kv-accent);
   border-radius: 999px;
   font-size: 0.68rem;
@@ -548,7 +548,6 @@ tbody tr:hover { background: var(--kv-card-2); }
   .tabs, .input-panel, .btn-pdf, footer { display: none !important; }
 
   .app-header { padding: 12px 0; border-bottom: 1px solid var(--kv-border); }
-  .home-logo { display: none; }
 
   main { padding: 0; max-width: 100%; }
 
